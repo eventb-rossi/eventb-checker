@@ -67,6 +67,7 @@ class ProjectValidator(private val checkProofs: Boolean = false) {
     }
 
     private fun parseProject(contents: ModelContents, errors: MutableList<ValidationError>): EventBProject {
+        val hasXmlInputs = contents.machines.isNotEmpty() || contents.contexts.isNotEmpty()
         val machines = contents.machines.mapNotNull { entry ->
             val result = xmlParser.parseMachine(entry.inputStream(), entry.path)
             errors.addAll(result.errors)
@@ -79,8 +80,7 @@ class ProjectValidator(private val checkProofs: Boolean = false) {
             result.context
         }.toMutableList()
 
-        val hasXmlFiles = contents.machines.isNotEmpty() || contents.contexts.isNotEmpty()
-        if (!hasXmlFiles) {
+        if (!hasXmlInputs) {
             for (entry in contents.eventbFiles) {
                 val result = camilleParser.parseFile(String(entry.data, Charsets.UTF_8), entry.path)
                 errors.addAll(result.errors)
@@ -89,15 +89,76 @@ class ProjectValidator(private val checkProofs: Boolean = false) {
             }
         }
 
-        val projectName = contents.machines.firstOrNull()?.path?.substringBefore("/")
-            ?: contents.contexts.firstOrNull()?.path?.substringBefore("/")
-            ?: contents.eventbFiles.firstOrNull()?.path?.substringBefore("/")
+        val resolvedMachines = resolveDuplicateMachines(machines, errors)
+        val resolvedContexts = resolveDuplicateContexts(contexts, errors)
+
+        val projectName = resolvedMachines.firstOrNull()?.filePath?.substringBefore("/")
+            ?: resolvedContexts.firstOrNull()?.filePath?.substringBefore("/")
+            ?: contents.eventbFiles.firstOrNull()?.path?.substringBefore("/")?.takeIf { !hasXmlInputs }
             ?: "unknown"
 
         return EventBProject(
             name = projectName,
-            machines = machines,
-            contexts = contexts,
+            machines = resolvedMachines,
+            contexts = resolvedContexts,
         )
+    }
+
+    private fun resolveDuplicateMachines(
+        machines: List<com.eventb.checker.model.Machine>,
+        errors: MutableList<ValidationError>,
+    ): List<com.eventb.checker.model.Machine> = resolveDuplicateComponents(
+        kind = "machine",
+        components = machines,
+        nameOf = { it.name },
+        filePathOf = { it.filePath },
+        errors = errors,
+    )
+
+    private fun resolveDuplicateContexts(
+        contexts: List<com.eventb.checker.model.Context>,
+        errors: MutableList<ValidationError>,
+    ): List<com.eventb.checker.model.Context> = resolveDuplicateComponents(
+        kind = "context",
+        components = contexts,
+        nameOf = { it.name },
+        filePathOf = { it.filePath },
+        errors = errors,
+    )
+
+    private fun <T> resolveDuplicateComponents(
+        kind: String,
+        components: List<T>,
+        nameOf: (T) -> String,
+        filePathOf: (T) -> String,
+        errors: MutableList<ValidationError>,
+    ): List<T> {
+        val sortedComponents = components.sortedBy { filePathOf(it) }
+        val selectedByName = linkedMapOf<String, T>()
+        val selectedPathByName = mutableMapOf<String, String>()
+
+        for (component in sortedComponents) {
+            val name = nameOf(component)
+            val path = filePathOf(component)
+            val selectedPath = selectedPathByName[name]
+
+            if (selectedPath == null) {
+                selectedByName[name] = component
+                selectedPathByName[name] = path
+                continue
+            }
+
+            errors.add(
+                ValidationError(
+                    filePath = path,
+                    severity = ValidationSeverity.WARNING,
+                    message = "Ignoring duplicate $kind '$name' from $path; using $selectedPath",
+                    element = name,
+                    ruleId = ValidationRules.DUPLICATE_COMPONENT.id,
+                ),
+            )
+        }
+
+        return selectedByName.values.sortedBy { filePathOf(it) }
     }
 }

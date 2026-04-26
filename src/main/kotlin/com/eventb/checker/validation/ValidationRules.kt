@@ -106,6 +106,12 @@ object ValidationRules {
         "A proof-related file (.bpr/.bpo/.bps) could not be parsed as XML.",
     )
 
+    val DUPLICATE_COMPONENT = RuleDescriptor(
+        "EB019",
+        "Duplicate component definition",
+        "Multiple files define the same machine or context, so lower-priority definitions are ignored.",
+    )
+
     val ALL: List<RuleDescriptor> = listOf(
         XML_PARSE_ERROR, UNEXPECTED_XML_ROOT, MISSING_XML_ATTRIBUTE,
         CAMILLE_PARSE_ERROR, FORMULA_PARSE_ERROR,
@@ -113,6 +119,6 @@ object ValidationRules {
         CROSS_REFERENCE_NOT_FOUND, WELL_DEFINEDNESS,
         DEAD_VARIABLE, UNMODIFIED_VARIABLE, DEAD_CONSTANT,
         INCOMPLETE_INITIALISATION,
-        UNDISCHARGED_PROOF, BROKEN_PROOF, PROOF_FILE_PARSE_ERROR,
+        UNDISCHARGED_PROOF, BROKEN_PROOF, PROOF_FILE_PARSE_ERROR, DUPLICATE_COMPONENT,
     )
 }

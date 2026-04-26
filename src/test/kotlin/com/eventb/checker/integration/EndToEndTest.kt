@@ -2,6 +2,7 @@ package com.eventb.checker.integration
 
 import com.eventb.checker.TestZipHelper.createZip
 import com.eventb.checker.validation.ProjectValidator
+import com.eventb.checker.validation.ValidationRules
 import com.eventb.checker.validation.ValidationSeverity
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
@@ -237,7 +238,51 @@ class EndToEndTest {
     }
 
     @Test
-    fun `eventb files are ignored when xml files are present`() {
+    fun `xml input suppresses eventb parsing`() {
+        val projectDir = File(tempDir, "project")
+        projectDir.mkdirs()
+        File(projectDir, "Limits.buc").writeText(
+            """
+                <org.eventb.core.contextFile name="Limits">
+                    <org.eventb.core.constant org.eventb.core.identifier="lim"/>
+                    <org.eventb.core.axiom org.eventb.core.label="axm1"
+                        org.eventb.core.predicate="lim ∈ ℕ" org.eventb.core.theorem="false"/>
+                    <org.eventb.core.axiom org.eventb.core.label="axm2"
+                        org.eventb.core.predicate="lim &gt; 0" org.eventb.core.theorem="false"/>
+                </org.eventb.core.contextFile>
+            """.trimIndent(),
+        )
+        File(projectDir, "Counter.eventb").writeText(
+            """
+            machine Counter
+            sees Limits
+            variables n
+            invariants
+              @inv1 n ∈ ℕ
+            events
+              event INITIALISATION
+              then
+                @act1 n ≔ 0
+              end
+              event increment
+                where
+                  @grd1 n < lim
+                then
+                  @act1 n ≔ n + 1
+              end
+            end
+            """.trimIndent(),
+        )
+
+        val result = validator.validate(projectDir.absolutePath)
+
+        assertThat(result.isValid).isTrue()
+        assertThat(result.summary.machineCount).isEqualTo(0)
+        assertThat(result.summary.contextCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `xml input ignores malformed eventb files`() {
         val projectDir = File(tempDir, "project")
         projectDir.mkdirs()
         File(projectDir, "M.bum").writeText(
@@ -249,11 +294,46 @@ class EndToEndTest {
                 </org.eventb.core.machineFile>
             """.trimIndent(),
         )
-        File(projectDir, "Extra.eventb").writeText("machine Extra end")
+        File(projectDir, "M.eventb").writeText(
+            """
+            machine M
+              invariants
+                @inv1 x ====
+            end
+            """.trimIndent(),
+        )
 
         val result = validator.validate(projectDir.absolutePath)
 
+        assertThat(result.isValid).isTrue()
         assertThat(result.summary.machineCount).isEqualTo(1)
+        assertThat(result.errors).noneMatch { it.filePath.endsWith(".eventb") }
+        assertThat(result.errors).noneMatch { it.ruleId == ValidationRules.DUPLICATE_COMPONENT.id }
+    }
+
+    @Test
+    fun `sorted path winner is used for duplicate eventb components`() {
+        val projectDir = File(tempDir, "project")
+        projectDir.mkdirs()
+        File(projectDir, "B.eventb").writeText(
+            """
+            machine M
+            sees Missing
+            end
+            """.trimIndent(),
+        )
+        File(projectDir, "A.eventb").writeText("machine M end")
+
+        val result = validator.validate(projectDir.absolutePath)
+
+        assertThat(result.isValid).isTrue()
+        assertThat(result.summary.machineCount).isEqualTo(1)
+        assertThat(result.errors).anyMatch {
+            it.severity == ValidationSeverity.WARNING &&
+                it.ruleId == ValidationRules.DUPLICATE_COMPONENT.id &&
+                it.filePath.endsWith("B.eventb")
+        }
+        assertThat(result.errors).noneMatch { it.message.contains("Missing") }
     }
 
     @Test
