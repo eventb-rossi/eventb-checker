@@ -26,8 +26,15 @@ data class ValidationSummary(
 data class ValidationResult(val errors: List<ValidationError>, val summary: ValidationSummary) {
     val isValid: Boolean get() = errors.none { it.severity == ValidationSeverity.ERROR }
 
-    fun withoutInfo(): ValidationResult = ValidationResult(
-        errors = errors.filter { it.severity != ValidationSeverity.INFO },
-        summary = summary,
-    )
+    fun withoutInfo(): ValidationResult {
+        val filteredErrors = errors.filter { it.severity != ValidationSeverity.INFO }
+        return ValidationResult(
+            errors = filteredErrors,
+            summary = summary.copy(
+                errorCount = filteredErrors.count { it.severity == ValidationSeverity.ERROR },
+                warningCount = filteredErrors.count { it.severity == ValidationSeverity.WARNING },
+                infoCount = 0,
+            ),
+        )
+    }
 }

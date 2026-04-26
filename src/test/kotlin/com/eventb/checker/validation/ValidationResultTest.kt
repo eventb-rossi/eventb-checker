@@ -36,9 +36,11 @@ class ValidationResultTest {
     }
 
     @Test
-    fun `withoutInfo preserves summary unchanged`() {
+    fun `withoutInfo recomputes visible summary counts`() {
         val result = ValidationResult(
             errors = listOf(
+                ValidationError("a.bum", ValidationSeverity.ERROR, "parse error"),
+                ValidationError("a.bum", ValidationSeverity.WARNING, "type error"),
                 ValidationError("a.bum", ValidationSeverity.INFO, "WD condition"),
             ),
             summary = summary(),
@@ -46,7 +48,13 @@ class ValidationResultTest {
 
         val filtered = result.withoutInfo()
 
-        assertThat(filtered.summary).isEqualTo(result.summary)
+        assertThat(filtered.summary.machineCount).isEqualTo(result.summary.machineCount)
+        assertThat(filtered.summary.contextCount).isEqualTo(result.summary.contextCount)
+        assertThat(filtered.summary.formulaCount).isEqualTo(result.summary.formulaCount)
+        assertThat(filtered.summary.proofSummary).isEqualTo(result.summary.proofSummary)
+        assertThat(filtered.summary.errorCount).isEqualTo(1)
+        assertThat(filtered.summary.warningCount).isEqualTo(1)
+        assertThat(filtered.summary.infoCount).isZero()
     }
 
     @Test
@@ -62,6 +70,9 @@ class ValidationResultTest {
         val filtered = result.withoutInfo()
 
         assertThat(filtered.errors).isEqualTo(result.errors)
+        assertThat(filtered.summary.errorCount).isEqualTo(result.summary.errorCount)
+        assertThat(filtered.summary.warningCount).isEqualTo(result.summary.warningCount)
+        assertThat(filtered.summary.infoCount).isZero()
     }
 
     @Test
