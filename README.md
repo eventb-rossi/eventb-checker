@@ -9,12 +9,14 @@ A command-line validator for [Event-B](https://www.event-b.org/) models. It read
 | XML well-formedness | ERROR | Validates `.bum`/`.buc` files are well-formed XML |
 | Camille syntax | ERROR | Parses `.eventb` files using the Camille textual notation grammar |
 | Formula syntax | ERROR | Parses predicates, expressions, and assignments using the Rodin AST library |
+| Undeclared identifiers | ERROR | Reports identifiers not declared in the surrounding context, machine, or event scope |
 | Type checking | WARNING | Type-checks formulas against inferred type environments |
 | Cross-reference integrity | ERROR | Verifies SEES, REFINES, and EXTENDS targets exist in the project |
 | Well-definedness | INFO | Reports non-trivial well-definedness conditions (e.g., division by zero) |
 | Dead identifiers | WARNING | Detects declared variables/constants never referenced in any formula |
 | Unmodified variables | INFO | Flags variables that are never assigned by any event action |
 | INITIALISATION completeness | WARNING | Checks that INITIALISATION assigns all declared machine variables |
+| Duplicate component definitions | WARNING | Warns when the same machine or context is defined multiple times within the parsed input set |
 | Proof status | WARNING | Reports undischarged/broken proof obligations from `.bpr`/`.bpo`/`.bps` files (with `--proofs`) |
 
 A model is reported as **VALID** when there are no ERROR-severity findings. Warnings and info findings are reported but do not affect validity.
@@ -46,12 +48,14 @@ java -jar build/libs/eventb-checker-1.0-all.jar /path/to/model.zip
 java -jar build/libs/eventb-checker-1.0-all.jar /path/to/model-directory
 ```
 
+When a project contains any Rodin XML files (`.bum` or `.buc`), the checker parses only those XML inputs and ignores `.eventb` files. Camille parsing is used only for projects that do not contain XML model files.
+
 ### Options
 
 | Option | Description |
 |--------|-------------|
 | `--format`, `-f` | Output format: `text` (default), `json`, or `sarif` |
-| `--show-info` | Include INFO-severity findings in output (suppressed by default) |
+| `--show-info` | Include INFO-severity findings in output (suppressed by default; hidden INFO findings are also removed from summary counts) |
 | `--proofs`, `-p` | Check proof status from `.bpr`/`.bpo`/`.bps` files |
 
 ### JSON Output Schema
@@ -150,6 +154,8 @@ steps:
 
 Results are automatically uploaded to [GitHub Code Scanning](https://docs.github.com/en/code-security/code-scanning) via SARIF, showing findings inline on pull requests and in the Security tab.
 
+If `model-path` matches no files, the action fails as a configuration error instead of succeeding with an empty report.
+
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `model-path` | yes | — | Glob pattern for `.zip` files |
@@ -170,6 +176,8 @@ variables:
 ```
 
 This creates an `eventb-validate` job that downloads the release JAR, runs validation, and reports results via JUnit XML in the MR widget.
+
+If `EVENTB_MODEL_GLOB` matches no files, the job fails as a configuration error instead of succeeding with an empty report.
 
 ### Configuration Variables
 
