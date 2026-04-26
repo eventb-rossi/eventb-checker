@@ -37,7 +37,6 @@ class ProofStatusCheckerTest {
         proofFiles = proofFiles,
         proofObligationFiles = poFiles,
         proofStatusFiles = psFiles,
-        otherFiles = emptyList(),
     )
 
     @Test
@@ -53,7 +52,6 @@ class ProofStatusCheckerTest {
         assertThat(result.summary.total).isEqualTo(3)
         assertThat(result.summary.discharged).isEqualTo(2)
         assertThat(result.summary.pending).isEqualTo(1)
-        assertThat(result.hasCompleteInfo).isFalse()
     }
 
     @Test
@@ -87,7 +85,6 @@ class ProofStatusCheckerTest {
             ),
         )
 
-        assertThat(result.hasCompleteInfo).isTrue()
         assertThat(result.summary.total).isEqualTo(2)
         assertThat(result.summary.discharged).isEqualTo(1)
         assertThat(result.summary.unattempted).isEqualTo(1)
@@ -128,7 +125,6 @@ class ProofStatusCheckerTest {
 
         val result = checker.check(contents(proofFiles = listOf(entry("project/M0.bpr", bpr))))
 
-        assertThat(result.hasCompleteInfo).isFalse()
         assertThat(result.obligations).hasSize(1)
         assertThat(result.obligations[0].manual).isFalse()
         assertThat(result.obligations[0].broken).isFalse()
@@ -227,6 +223,18 @@ class ProofStatusCheckerTest {
         assertThat(result.summary.pending).isEqualTo(1)
         assertThat(result.obligations[0].component).isEqualTo("M0")
         assertThat(result.obligations[1].component).isEqualTo("M1")
+    }
+
+    @Test
+    fun `proof component names use normalized entry paths`() {
+        val bpr = bprXml(
+            """<org.eventb.core.prProof name="INIT/inv1/INV" org.eventb.core.confidence="1000"/>""",
+        )
+
+        val result = checker.check(contents(proofFiles = listOf(entry("""project\nested\M0.bpr""", bpr))))
+
+        assertThat(result.obligations).hasSize(1)
+        assertThat(result.obligations.single().component).isEqualTo("M0")
     }
 
     @Test

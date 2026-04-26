@@ -9,12 +9,7 @@ import com.eventb.checker.xml.XmlConstants
 import com.eventb.checker.xml.childElements
 import com.eventb.checker.xml.parseXmlDocument
 
-data class ProofStatusResult(
-    val obligations: List<ProofObligation>,
-    val summary: ProofStatusSummary,
-    val hasCompleteInfo: Boolean,
-    val errors: List<ValidationError>,
-)
+data class ProofStatusResult(val obligations: List<ProofObligation>, val summary: ProofStatusSummary, val errors: List<ValidationError>)
 
 class ProofStatusChecker {
 
@@ -62,7 +57,7 @@ class ProofStatusChecker {
             )
         }
 
-        return ProofStatusResult(obligations, summary, poData.isNotEmpty(), errors)
+        return ProofStatusResult(obligations, summary, errors)
     }
 
     private data class PrEntry(val component: String, val name: String, val confidence: Int?)

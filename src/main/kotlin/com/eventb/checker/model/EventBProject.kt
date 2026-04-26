@@ -1,6 +1,6 @@
 package com.eventb.checker.model
 
-data class EventBProject(val name: String, val machines: List<Machine>, val contexts: List<Context>, val otherFiles: List<String>)
+data class EventBProject(val name: String, val machines: List<Machine>, val contexts: List<Context>)
 
 data class Machine(
     val name: String,

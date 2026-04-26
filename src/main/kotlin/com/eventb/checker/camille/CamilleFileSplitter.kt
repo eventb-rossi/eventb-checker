@@ -1,6 +1,6 @@
 package com.eventb.checker.camille
 
-data class CamilleChunk(val text: String, val startLine: Int, val componentName: String)
+data class CamilleChunk(val text: String, val componentName: String)
 
 class CamilleFileSplitter {
 
@@ -9,11 +9,10 @@ class CamilleFileSplitter {
         val chunks = mutableListOf<CamilleChunk>()
         var depth = 0
         var currentLines = mutableListOf<String>()
-        var currentStartLine = 0
         var currentName = ""
         var inBlockComment = false
 
-        for ((index, line) in lines.withIndex()) {
+        for (line in lines) {
             val stripped = stripComments(line, inBlockComment)
             inBlockComment = stripped.second
             val effective = stripped.first.trim()
@@ -23,7 +22,6 @@ class CamilleFileSplitter {
                 if (topLevel != null) {
                     // Start a new component
                     currentLines = mutableListOf(line)
-                    currentStartLine = index + 1
                     currentName = topLevel
                     depth = 1
                     continue
@@ -38,7 +36,7 @@ class CamilleFileSplitter {
             depth += countDepthChange(effective)
 
             if (depth <= 0) {
-                chunks.add(CamilleChunk(currentLines.joinToString("\n"), currentStartLine, currentName))
+                chunks.add(CamilleChunk(currentLines.joinToString("\n"), currentName))
                 depth = 0
                 currentLines = mutableListOf()
                 currentName = ""
@@ -47,12 +45,12 @@ class CamilleFileSplitter {
 
         // If we still have an open component (missing final `end`), include it as-is
         if (depth > 0 && currentLines.isNotEmpty()) {
-            chunks.add(CamilleChunk(currentLines.joinToString("\n"), currentStartLine, currentName))
+            chunks.add(CamilleChunk(currentLines.joinToString("\n"), currentName))
         }
 
         // Single component: return original input as-is for backward compatibility
         if (chunks.size <= 1) {
-            return listOf(CamilleChunk(input, 1, chunks.firstOrNull()?.componentName ?: ""))
+            return listOf(CamilleChunk(input, chunks.firstOrNull()?.componentName ?: ""))
         }
 
         return chunks

@@ -24,7 +24,6 @@ object TestModelBuilders {
         name = "test",
         machines = machines,
         contexts = contexts,
-        otherFiles = emptyList(),
     )
 
     fun machine(

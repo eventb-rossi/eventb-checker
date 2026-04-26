@@ -98,7 +98,6 @@ class ProjectValidator(private val checkProofs: Boolean = false) {
             name = projectName,
             machines = machines,
             contexts = contexts,
-            otherFiles = contents.otherFiles,
         )
     }
 }

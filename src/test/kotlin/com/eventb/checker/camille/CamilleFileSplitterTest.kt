@@ -21,7 +21,6 @@ class CamilleFileSplitterTest {
 
         assertThat(chunks).hasSize(1)
         assertThat(chunks[0].text).isEqualTo(input)
-        assertThat(chunks[0].startLine).isEqualTo(1)
         assertThat(chunks[0].componentName).isEqualTo("M")
     }
 
@@ -37,7 +36,6 @@ class CamilleFileSplitterTest {
 
         assertThat(chunks).hasSize(1)
         assertThat(chunks[0].text).isEqualTo(input)
-        assertThat(chunks[0].startLine).isEqualTo(1)
         assertThat(chunks[0].componentName).isEqualTo("Ctx")
     }
 
@@ -69,12 +67,10 @@ class CamilleFileSplitterTest {
         assertThat(chunks[0].componentName).isEqualTo("Limits")
         assertThat(chunks[0].text).startsWith("context Limits")
         assertThat(chunks[0].text).endsWith("end")
-        assertThat(chunks[0].startLine).isEqualTo(1)
 
         assertThat(chunks[1].componentName).isEqualTo("Counter")
         assertThat(chunks[1].text).startsWith("machine Counter")
         assertThat(chunks[1].text).endsWith("end")
-        assertThat(chunks[1].startLine).isEqualTo(7)
     }
 
     @Test

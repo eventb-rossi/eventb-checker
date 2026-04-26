@@ -29,7 +29,6 @@ class ModelImporterTest {
         assertThat(contents.machines[0].path).isEqualTo("project/MyMachine.bum")
         assertThat(contents.contexts).hasSize(1)
         assertThat(contents.contexts[0].path).isEqualTo("project/MyContext.buc")
-        assertThat(contents.otherFiles).hasSize(1)
     }
 
     @Test
@@ -40,7 +39,6 @@ class ModelImporterTest {
 
         assertThat(contents.machines).isEmpty()
         assertThat(contents.contexts).isEmpty()
-        assertThat(contents.otherFiles).isEmpty()
     }
 
     @Test
@@ -48,6 +46,19 @@ class ModelImporterTest {
         val zip = createZip(
             tempDir,
             "root/sub/Deep.bum" to "<org.eventb.core.machineFile/>",
+        )
+
+        val contents = importer.import(zip.absolutePath)
+
+        assertThat(contents.machines).hasSize(1)
+        assertThat(contents.machines[0].path).isEqualTo("root/sub/Deep.bum")
+    }
+
+    @Test
+    fun `import normalizes backslashes in zip entry paths`() {
+        val zip = createZip(
+            tempDir,
+            "root\\sub\\Deep.bum" to "<org.eventb.core.machineFile/>",
         )
 
         val contents = importer.import(zip.absolutePath)
@@ -86,7 +97,6 @@ class ModelImporterTest {
         assertThat(contents.machines[0].path).isEqualTo("project/MyMachine.bum")
         assertThat(contents.contexts).hasSize(1)
         assertThat(contents.contexts[0].path).isEqualTo("project/MyContext.buc")
-        assertThat(contents.otherFiles).hasSize(1)
     }
 
     @Test
@@ -103,7 +113,6 @@ class ModelImporterTest {
         assertThat(contents.machines).hasSize(1)
         assertThat(contents.contexts).hasSize(1)
         assertThat(contents.eventbFiles).hasSize(1)
-        assertThat(contents.otherFiles).hasSize(1)
     }
 
     @Test
@@ -135,6 +144,38 @@ class ModelImporterTest {
     }
 
     @Test
+    fun `import directory files in normalized sorted order`() {
+        val projectDir = File(tempDir, "project")
+        File(projectDir, "b").mkdirs()
+        File(projectDir, "a").mkdirs()
+        File(projectDir, "b/Z.bum").writeText("<org.eventb.core.machineFile/>")
+        File(projectDir, "a/A.bum").writeText("<org.eventb.core.machineFile/>")
+
+        val contents = importer.import(projectDir.absolutePath)
+
+        assertThat(contents.machines.map { it.path }).containsExactly(
+            "project/a/A.bum",
+            "project/b/Z.bum",
+        )
+    }
+
+    @Test
+    fun `import zip files in normalized sorted order`() {
+        val zip = createZip(
+            tempDir,
+            "project/B.bum" to "<org.eventb.core.machineFile name=\"B\"/>",
+            "project/A.bum" to "<org.eventb.core.machineFile name=\"A\"/>",
+        )
+
+        val contents = importer.import(zip.absolutePath)
+
+        assertThat(contents.machines.map { it.path }).containsExactly(
+            "project/A.bum",
+            "project/B.bum",
+        )
+    }
+
+    @Test
     fun `import single eventb file`() {
         val projectDir = File(tempDir, "project")
         projectDir.mkdirs()
@@ -148,7 +189,6 @@ class ModelImporterTest {
         assertThat(String(contents.eventbFiles[0].data)).isEqualTo("machine Counter\nend")
         assertThat(contents.machines).isEmpty()
         assertThat(contents.contexts).isEmpty()
-        assertThat(contents.otherFiles).isEmpty()
     }
 
     @Test
