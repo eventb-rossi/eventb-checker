@@ -1,7 +1,9 @@
 package com.eventb.checker.camille
 
 import com.eventb.checker.model.Convergence
+import com.eventb.checker.model.Machine
 import com.eventb.checker.validation.ValidationSeverity
+import de.be4.eventb.core.parser.node.AMachineParseUnit
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 
@@ -315,6 +317,28 @@ class CamilleParserTest {
         assertThat(ctx.axioms[0].theorem).isFalse()
         assertThat(ctx.axioms[1].theorem).isTrue()
         assertThat(ctx.axioms[1].label).isEqualTo("thm1")
+    }
+
+    @Test
+    fun `conversion failures are reported as parse errors`() {
+        val parser = object : CamilleParser() {
+            override fun convertMachine(node: AMachineParseUnit, filePath: String): Machine = error("boom")
+        }
+
+        val result = parser.parse(
+            """
+            machine M
+            end
+            """.trimIndent(),
+            "M.eventb",
+        )
+
+        assertThat(result.machine).isNull()
+        assertThat(result.context).isNull()
+        assertThat(result.errors).hasSize(1)
+        assertThat(result.errors[0].severity).isEqualTo(ValidationSeverity.ERROR)
+        assertThat(result.errors[0].ruleId).isEqualTo("EB004")
+        assertThat(result.errors[0].message).contains("failed to convert parse tree").contains("boom")
     }
 
     @Test
