@@ -47,7 +47,7 @@ data class CamilleParseResult(val machine: Machine?, val context: Context?, val 
 
 data class CamilleFileResult(val machines: List<Machine>, val contexts: List<Context>, val errors: List<ValidationError>)
 
-class CamilleParser {
+open class CamilleParser {
 
     companion object {
         private const val VARIANT_LABEL = "vrn"
@@ -127,25 +127,40 @@ class CamilleParser {
             )
         }
 
-        return when (val unit = start.pParseUnit) {
-            is AMachineParseUnit -> CamilleParseResult(
-                machine = convertMachine(unit, filePath),
-                context = null,
-                errors = emptyList(),
-            )
-            is AContextParseUnit -> CamilleParseResult(
-                machine = null,
-                context = convertContext(unit, filePath),
-                errors = emptyList(),
-            )
-            else -> CamilleParseResult(
+        return try {
+            when (val unit = start.pParseUnit) {
+                is AMachineParseUnit -> CamilleParseResult(
+                    machine = convertMachine(unit, filePath),
+                    context = null,
+                    errors = emptyList(),
+                )
+                is AContextParseUnit -> CamilleParseResult(
+                    machine = null,
+                    context = convertContext(unit, filePath),
+                    errors = emptyList(),
+                )
+                else -> CamilleParseResult(
+                    machine = null,
+                    context = null,
+                    errors = listOf(
+                        ValidationError(
+                            filePath = filePath,
+                            severity = ValidationSeverity.ERROR,
+                            message = "Camille parse error: unknown parse unit type",
+                            ruleId = ValidationRules.CAMILLE_PARSE_ERROR.id,
+                        ),
+                    ),
+                )
+            }
+        } catch (e: RuntimeException) {
+            CamilleParseResult(
                 machine = null,
                 context = null,
                 errors = listOf(
                     ValidationError(
                         filePath = filePath,
                         severity = ValidationSeverity.ERROR,
-                        message = "Camille parse error: unknown parse unit type",
+                        message = "Camille parse error: failed to convert parse tree: ${e.message ?: e.javaClass.simpleName}",
                         ruleId = ValidationRules.CAMILLE_PARSE_ERROR.id,
                     ),
                 ),
@@ -175,7 +190,7 @@ class CamilleParser {
         return CamilleFileResult(machines = machines, contexts = contexts, errors = errors)
     }
 
-    private fun convertMachine(node: AMachineParseUnit, filePath: String): Machine {
+    internal open fun convertMachine(node: AMachineParseUnit, filePath: String): Machine {
         val name = node.name.text
         val refinesNames = node.refinesNames.map { it.text }
         val seenNames = node.seenNames.map { it.text }
@@ -283,7 +298,7 @@ class CamilleParser {
         else -> error("Unknown guard type: ${node.javaClass}")
     }
 
-    private fun convertContext(node: AContextParseUnit, filePath: String): Context {
+    internal open fun convertContext(node: AContextParseUnit, filePath: String): Context {
         val name = node.name.text
         val extendsNames = node.extendsNames.map { it.text }
 
