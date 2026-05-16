@@ -32,7 +32,7 @@ fi
 version="${tag#v}"
 
 # 2. Check build.gradle.kts version matches
-gradle_version=$(grep -oP '^\s*version\s*=\s*"\K[^"]+' build.gradle.kts)
+gradle_version=$(sed -nE 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' build.gradle.kts | head -n 1)
 if [ "$gradle_version" != "$version" ]; then
     emit_error "build.gradle.kts" "build.gradle.kts version is '$gradle_version', expected '$version'"
 fi
