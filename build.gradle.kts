@@ -22,7 +22,7 @@ dependencies {
     implementation("de.hhu.stups:rodin-eventb-ast:3.8.0")
     implementation("de.hhu.stups:eventbstruct:2.15.4")
     implementation("com.github.ajalt.clikt:clikt:5.1.0")
-    implementation("org.json:json:20251224")
+    implementation("org.json:json:20260522")
 
     testImplementation(kotlin("test"))
     testImplementation("org.junit.jupiter:junit-jupiter:6.0.3")
