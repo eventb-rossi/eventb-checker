@@ -57,6 +57,7 @@ When a project contains any Rodin XML files (`.bum` or `.buc`), the checker pars
 | `--format`, `-f` | Output format: `text` (default), `json`, or `sarif` |
 | `--show-info` | Include INFO-severity findings in output (suppressed by default; hidden INFO findings are also removed from summary counts) |
 | `--proofs`, `-p` | Check proof status from `.bpr`/`.bpo`/`.bps` files |
+| `--version` | Print the version and exit |
 
 ### JSON Output Schema
 

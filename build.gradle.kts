@@ -7,6 +7,7 @@ plugins {
 
 group = "com.eventb"
 version = "1.1"
+val projectVersion = version.toString()
 
 repositories {
     mavenCentral()
@@ -55,7 +56,14 @@ spotless {
 
 tasks.jar {
     manifest {
-        attributes("Implementation-Version" to project.version)
+        attributes("Implementation-Version" to projectVersion)
+    }
+}
+
+tasks.processResources {
+    inputs.property("version", projectVersion)
+    filesMatching("eventb-checker-version.properties") {
+        expand("version" to projectVersion)
     }
 }
 
@@ -64,7 +72,7 @@ tasks.shadowJar {
     manifest {
         attributes(
             "Main-Class" to "com.eventb.checker.MainKt",
-            "Implementation-Version" to project.version,
+            "Implementation-Version" to projectVersion,
         )
     }
 }
