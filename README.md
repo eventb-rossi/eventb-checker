@@ -44,8 +44,8 @@ Or build a fat JAR and run it directly:
 
 ```bash
 ./gradlew shadowJar
-java -jar build/libs/eventb-checker-1.1-all.jar /path/to/model.zip
-java -jar build/libs/eventb-checker-1.1-all.jar /path/to/model-directory
+java -jar build/libs/eventb-checker-1.2-all.jar /path/to/model.zip
+java -jar build/libs/eventb-checker-1.2-all.jar /path/to/model-directory
 ```
 
 When a project contains any Rodin XML files (`.bum` or `.buc`), the checker parses only those XML inputs and ignores `.eventb` files. Camille parsing is used only for projects that do not contain XML model files.
@@ -148,7 +148,7 @@ The simplest option — a single `uses:` step that downloads the release JAR and
 ```yaml
 steps:
   - uses: actions/checkout@v6
-  - uses: eventb-rossi/eventb-checker@v1.1
+  - uses: eventb-rossi/eventb-checker@v1.2
     with:
       model-path: "models/*.zip"
 ```

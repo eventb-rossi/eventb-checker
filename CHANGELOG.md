@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.2] - 2026-05-31
+
+### Added
+
+- `--version` flag to print the CLI version and exit.
+
+### Changed
+
+- Upgrade the JSON-java and JUnit dependencies.
+
 ## [1.1] - 2026-05-16
 
 ### Changed

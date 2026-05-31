@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.eventb"
-version = "1.1"
+version = "1.2"
 val projectVersion = version.toString()
 
 repositories {
