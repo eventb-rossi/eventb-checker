@@ -63,6 +63,16 @@ class ProjectValidator(private val checkProofs: Boolean = false) {
         return ValidationResult(allErrors, summary)
     }
 
+    /**
+     * Type-check the model at `modelPath` and return the inferred types of its
+     * declared constants, variables, and event parameters (no other validation).
+     */
+    fun dumpTypes(modelPath: String): TypeDump {
+        val contents = ModelImporter().import(modelPath)
+        val project = parseProject(contents, mutableListOf())
+        return typeChecker.dumpTypes(project)
+    }
+
     private fun parseProject(contents: ModelContents, errors: MutableList<ValidationError>): EventBProject {
         val hasXmlInputs = contents.machines.isNotEmpty() || contents.contexts.isNotEmpty()
         val machines = contents.machines.mapNotNull { entry ->

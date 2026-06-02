@@ -33,35 +33,49 @@ A model is reported as **VALID** when there are no ERROR-severity findings. Warn
 
 ## Usage
 
-The checker accepts either a `.zip` archive or a directory of `.bum`/`.buc`/`.eventb` files:
+The checker exposes two subcommands, both accepting either a `.zip` archive or a directory of `.bum`/`.buc`/`.eventb` files:
+
+| Command | Description |
+|---------|-------------|
+| `check` | Validate a model and report findings (`text`/`json`/`sarif`) |
+| `info` | Report read-only facts about a model (currently inferred identifier types) |
 
 ```bash
-./gradlew run --args="/path/to/model.zip"
-./gradlew run --args="/path/to/model-directory"
+./gradlew run --args="check /path/to/model.zip"
+./gradlew run --args="check /path/to/model-directory"
+./gradlew run --args="info /path/to/model.zip --types --format json"
 ```
 
 Or build a fat JAR and run it directly:
 
 ```bash
 ./gradlew shadowJar
-java -jar build/libs/eventb-checker-1.2-all.jar /path/to/model.zip
-java -jar build/libs/eventb-checker-1.2-all.jar /path/to/model-directory
+java -jar build/libs/eventb-checker-1.2-all.jar check /path/to/model.zip
+java -jar build/libs/eventb-checker-1.2-all.jar info /path/to/model.zip --types --format json
 ```
 
 When a project contains any Rodin XML files (`.bum` or `.buc`), the checker parses only those XML inputs and ignores `.eventb` files. Camille parsing is used only for projects that do not contain XML model files.
 
-### Options
+### `check` options
 
 | Option | Description |
 |--------|-------------|
 | `--format`, `-f` | Output format: `text` (default), `json`, or `sarif` |
 | `--show-info` | Include INFO-severity findings in output (suppressed by default; hidden INFO findings are also removed from summary counts) |
 | `--proofs`, `-p` | Check proof status from `.bpr`/`.bpo`/`.bps` files |
-| `--version` | Print the version and exit |
+
+### `info` options
+
+| Option | Description |
+|--------|-------------|
+| `--types` | Include the inferred types of declared identifiers (at least one fact must be selected) |
+| `--format`, `-f` | Output format: `text` (default) or `json` |
+
+`--version` is available on the top-level command (`eventb-checker --version`).
 
 ### JSON Output Schema
 
-When using `--format json`, the output has the following structure:
+When using `check --format json`, the output has the following structure:
 
 ```json
 {
@@ -99,7 +113,33 @@ When using `--format json`, the output has the following structure:
 
 ### SARIF Output
 
-When using `--format sarif`, the output follows the [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) standard. This enables integration with GitHub Code Scanning, VS Code SARIF Viewer, and other tools that consume SARIF. Each finding includes a rule ID (e.g., `EB005` for formula parse errors) mapped to the `tool.driver.rules` array.
+When using `check --format sarif`, the output follows the [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) standard. This enables integration with GitHub Code Scanning, VS Code SARIF Viewer, and other tools that consume SARIF. Each finding includes a rule ID (e.g., `EB005` for formula parse errors) mapped to the `tool.driver.rules` array.
+
+### Type Information (`info --types`)
+
+`info --types` type-checks the model and reports the inferred types of its
+declared constants (per context), variables and event parameters (per machine),
+keyed by component and identifier. With `--format json` each requested fact is
+nested under its own key (here, `types`), so adding more facts later leaves the
+existing shape unchanged:
+
+```json
+{
+  "types": {
+    "contexts": { "C0": { "cars_limit": "ℤ" } },
+    "machines": {
+      "M0": {
+        "variables": { "cars_number": "ℤ" },
+        "events": { "ML_out": { "p": "ℙ(S×S)" } }
+      }
+    }
+  }
+}
+```
+
+Types are Rodin's canonical `Type.toString()` (e.g. `ℙ(S×S)`); identifiers Rodin
+leaves untyped are omitted. `info` runs only the type-checker (no other
+validators) and never reports invalidity — it exits 0 (success) or 2 (input error).
 
 ### Exit Codes
 

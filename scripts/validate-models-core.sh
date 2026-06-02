@@ -48,7 +48,7 @@ validate_models() {
 
     # Single run with SARIF output
     local sarif_output
-    sarif_output=$($CHECKER_CMD --format sarif $SHOW_INFO_FLAG $PROOFS_FLAG "$zip" 2>/tmp/checker_stderr) && local checker_rc=0 || local checker_rc=$?
+    sarif_output=$($CHECKER_CMD check --format sarif $SHOW_INFO_FLAG $PROOFS_FLAG "$zip" 2>/tmp/checker_stderr) && local checker_rc=0 || local checker_rc=$?
 
     # If checker crashed (exit code 2) or output is not valid JSON, handle gracefully
     if [ "$checker_rc" -eq 2 ] || ! echo "$sarif_output" | jq empty 2>/dev/null; then

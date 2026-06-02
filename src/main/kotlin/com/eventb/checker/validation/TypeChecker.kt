@@ -8,6 +8,7 @@ import org.eventb.core.ast.Assignment
 import org.eventb.core.ast.Formula
 import org.eventb.core.ast.FormulaFactory
 import org.eventb.core.ast.IParseResult
+import org.eventb.core.ast.ITypeEnvironment
 import org.eventb.core.ast.ITypeEnvironmentBuilder
 
 class TypeChecker(private val ff: FormulaFactory = FormulaFactory.getDefault()) {
@@ -40,7 +41,27 @@ class TypeChecker(private val ff: FormulaFactory = FormulaFactory.getDefault()) 
     private val parseExpression: (String) -> IParseResult = { ff.parseExpression(it, null) }
     private val extractExpression: (IParseResult) -> Formula<*> = { it.parsedExpression }
 
+    /** When non-null, the env-building traversal records inferred types into it. */
+    private var dump: MutableTypeDump? = null
+
     fun checkProject(project: EventBProject): List<ValidationError> = checkProjectFull(project).errors
+
+    /**
+     * Type-check `project` purely to collect the inferred types of its declared
+     * constants, variables, and event parameters. Reuses the same environment
+     * construction as [checkProjectFull], so the types match Rodin exactly; an
+     * identifier Rodin leaves untyped is simply absent.
+     */
+    fun dumpTypes(project: EventBProject): TypeDump {
+        val sink = MutableTypeDump()
+        dump = sink
+        try {
+            checkProjectFull(project)
+        } finally {
+            dump = null
+        }
+        return sink.build()
+    }
 
     fun checkProjectFull(project: EventBProject): TypeCheckResult {
         val errors = mutableListOf<ValidationError>()
@@ -153,6 +174,7 @@ class TypeChecker(private val ff: FormulaFactory = FormulaFactory.getDefault()) 
 
         contextEnvs[ctx.name] = env
         contextDeclaredIdentifiers[ctx.name] = declaredIdentifiers.toSet()
+        dump?.recordContext(ctx, env)
         visiting.remove(ctx.name)
         return env
     }
@@ -242,6 +264,7 @@ class TypeChecker(private val ff: FormulaFactory = FormulaFactory.getDefault()) 
 
         machineEnvs[machine.name] = env
         machineScopes[machine.name] = machineScope
+        dump?.recordMachineVariables(machine, env)
         visiting.remove(machine.name)
 
         for (event in machine.events) {
@@ -311,6 +334,8 @@ class TypeChecker(private val ff: FormulaFactory = FormulaFactory.getDefault()) 
                 scope = witnessScope,
             )
         }
+
+        dump?.recordEvent(machine, event, eventEnv)
     }
 
     private fun effectiveEventParameterNames(
@@ -437,5 +462,50 @@ class TypeChecker(private val ff: FormulaFactory = FormulaFactory.getDefault()) 
         return identifiers
             .filterNot { scope.contains(it) }
             .sorted()
+    }
+
+    /**
+     * Accumulates inferred types of declared identifiers as the env-building
+     * traversal visits each context/machine/event. A declared identifier whose
+     * type was never solved (`env.getType` returns null) is left out.
+     */
+    private class MutableTypeDump {
+        private val contexts = linkedMapOf<String, MutableMap<String, String>>()
+        private val machineVariables = linkedMapOf<String, MutableMap<String, String>>()
+        private val machineEvents = linkedMapOf<String, MutableMap<String, MutableMap<String, String>>>()
+
+        fun recordContext(ctx: Context, env: ITypeEnvironment) {
+            val types = contexts.getOrPut(ctx.name) { linkedMapOf() }
+            for (constant in ctx.constants) {
+                env.getType(constant.identifier)?.let { types[constant.identifier] = it.toString() }
+            }
+        }
+
+        fun recordMachineVariables(machine: Machine, env: ITypeEnvironment) {
+            val types = machineVariables.getOrPut(machine.name) { linkedMapOf() }
+            for (variable in machine.variables) {
+                env.getType(variable.identifier)?.let { types[variable.identifier] = it.toString() }
+            }
+        }
+
+        fun recordEvent(machine: Machine, event: Event, env: ITypeEnvironment) {
+            val events = machineEvents.getOrPut(machine.name) { linkedMapOf() }
+            val types = events.getOrPut(event.label) { linkedMapOf() }
+            for (parameter in event.parameters) {
+                env.getType(parameter.identifier)?.let { types[parameter.identifier] = it.toString() }
+            }
+        }
+
+        fun build(): TypeDump {
+            // Every machine is recorded in `machineVariables` before any of its
+            // events, so its keys are a superset of `machineEvents`' keys.
+            val machines = machineVariables.mapValues { (name, variables) ->
+                MachineTypeDump(
+                    variables = variables,
+                    events = machineEvents[name].orEmpty(),
+                )
+            }
+            return TypeDump(contexts = contexts, machines = machines)
+        }
     }
 }
