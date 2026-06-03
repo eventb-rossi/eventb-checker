@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.3] - 2026-06-03
+
+### Added
+
+- `info` subcommand with `--types` to report the inferred types of declared constants, variables, and event parameters — as text or, with `--format json`, as JSON.
+
+### Changed
+
+- **Breaking:** model validation now runs under the `check` subcommand. Use `eventb-checker check <model>` (e.g. `eventb-checker check --format sarif <model>`) instead of passing the model to the top-level command.
+
 ## [1.2] - 2026-05-31
 
 ### Added
