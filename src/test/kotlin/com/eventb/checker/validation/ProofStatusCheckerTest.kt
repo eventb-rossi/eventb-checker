@@ -145,6 +145,25 @@ class ProofStatusCheckerTest {
     }
 
     @Test
+    fun `deeply nested proof tree parses beyond JDK default depth limit`() {
+        // Rodin proof trees can nest deeper than 100 elements, the jdk.xml.maxElementDepth
+        // default on JDK 24+ (emulated for tests via a system property in build.gradle.kts).
+        val depth = 150
+        val nested = (1..depth).joinToString("") { "<org.eventb.core.prRule name=\"r$it\">" } +
+            (1..depth).joinToString("") { "</org.eventb.core.prRule>" }
+        val bpr = bprXml(
+            """<org.eventb.core.prProof name="INIT/inv1/INV" org.eventb.core.confidence="1000">$nested</org.eventb.core.prProof>""",
+        )
+
+        val result = checker.check(contents(proofFiles = listOf(entry("project/M0.bpr", bpr))))
+
+        assertThat(result.errors).isEmpty()
+        assertThat(result.summary.total).isEqualTo(1)
+        assertThat(result.summary.discharged).isEqualTo(1)
+        assertThat(result.summary.unattempted).isEqualTo(0)
+    }
+
+    @Test
     fun `malformed XML produces warning error`() {
         val result = checker.check(
             contents(proofFiles = listOf(entry("project/Bad.bpr", "not xml <<<"))),

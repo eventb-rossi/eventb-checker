@@ -36,6 +36,8 @@ application {
 
 tasks.test {
     useJUnitPlatform()
+    // Emulate the JDK 24+ default XML depth limit so depth-related tests bite on JDK 21 too.
+    systemProperty("jdk.xml.maxElementDepth", "100")
     testLogging {
         events("failed")
         showExceptions = true

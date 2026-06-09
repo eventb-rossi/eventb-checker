@@ -14,6 +14,9 @@ internal fun createSecureDocumentBuilder(): DocumentBuilder {
         setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
         setFeature("http://xml.org/sax/features/external-general-entities", false)
         setFeature("http://xml.org/sax/features/external-parameter-entities", false)
+        // JDK 24+ defaults jdk.xml.maxElementDepth to 100, which large Rodin proof
+        // trees exceed; 0 lifts the limit (inputs are local files, DOCTYPE is disabled).
+        setAttribute("jdk.xml.maxElementDepth", 0)
     }
     return factory.newDocumentBuilder()
 }
