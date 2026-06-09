@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.4] - 2026-06-10
+
+### Fixed
+
+- Parse Rodin proof trees nested deeper than 100 XML elements. On JDK 24+ the parser's default `jdk.xml.maxElementDepth` of 100 caused whole `.bpr` files to be silently skipped, misreporting their discharged proof obligations as unattempted.
+
+### Changed
+
+- Upgrade Kotlin, Shadow, and Spotless build dependencies.
+
 ## [1.3] - 2026-06-03
 
 ### Added
