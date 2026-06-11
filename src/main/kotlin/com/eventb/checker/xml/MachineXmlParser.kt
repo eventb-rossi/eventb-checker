@@ -57,7 +57,7 @@ class MachineXmlParser {
                 XmlConstants.INVARIANT -> {
                     val label = child.getAttribute(XmlConstants.ATTR_LABEL)
                     val predicate = child.getAttrOrError(XmlConstants.ATTR_PREDICATE, filePath, errors)
-                    val theorem = child.getAttribute(XmlConstants.ATTR_THEOREM) == "true"
+                    val theorem = child.boolAttribute(XmlConstants.ATTR_THEOREM)
                     if (predicate.isNotEmpty()) invariants.add(Invariant(label, predicate, theorem))
                 }
                 XmlConstants.VARIANT -> {
@@ -97,8 +97,8 @@ class MachineXmlParser {
         val label = element.getAttribute(XmlConstants.ATTR_LABEL).ifEmpty {
             element.getAttribute(XmlConstants.ATTR_NAME)
         }
-        val convergence = Convergence.fromCode(element.getAttribute(XmlConstants.ATTR_CONVERGENCE).toIntOrNull() ?: 0)
-        val extended = element.getAttribute(XmlConstants.ATTR_EXTENDED) == "true"
+        val convergence = Convergence.fromCode(element.intAttribute(XmlConstants.ATTR_CONVERGENCE) ?: 0)
+        val extended = element.boolAttribute(XmlConstants.ATTR_EXTENDED)
 
         val refinesEvents = mutableListOf<String>()
         val parameters = mutableListOf<Parameter>()
@@ -120,7 +120,7 @@ class MachineXmlParser {
                 XmlConstants.GUARD -> {
                     val guardLabel = child.getAttribute(XmlConstants.ATTR_LABEL)
                     val predicate = child.getAttrOrError(XmlConstants.ATTR_PREDICATE, filePath, errors)
-                    val theorem = child.getAttribute(XmlConstants.ATTR_THEOREM) == "true"
+                    val theorem = child.boolAttribute(XmlConstants.ATTR_THEOREM)
                     if (predicate.isNotEmpty()) guards.add(Guard(guardLabel, predicate, theorem))
                 }
                 XmlConstants.ACTION -> {

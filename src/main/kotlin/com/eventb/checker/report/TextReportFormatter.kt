@@ -18,7 +18,8 @@ class TextReportFormatter : ReportFormatter {
         sb.appendLine("Warnings: ${summary.warningCount}")
         sb.appendLine("Info:     ${summary.infoCount}")
         summary.proofSummary?.let { ps ->
-            val parts = mutableListOf("${ps.discharged}/${ps.total} discharged")
+            val manual = if (ps.manualDischarged > 0) " (${ps.manualDischarged} manual)" else ""
+            val parts = mutableListOf("${ps.discharged}/${ps.total} discharged$manual")
             if (ps.reviewed > 0) parts.add("${ps.reviewed} reviewed")
             if (ps.pending > 0) parts.add("${ps.pending} pending")
             if (ps.unattempted > 0) parts.add("${ps.unattempted} unattempted")

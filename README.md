@@ -18,7 +18,7 @@ A command-line validator for [Event-B](https://www.event-b.org/) models. It read
 | Unmodified variables | INFO | Flags variables that are never assigned by any event action |
 | INITIALISATION completeness | WARNING | Checks that INITIALISATION assigns all declared machine variables |
 | Duplicate component definitions | WARNING | Warns when the same machine or context is defined multiple times within the parsed input set |
-| Proof status | WARNING | Reports undischarged/broken proof obligations from `.bpr`/`.bpo`/`.bps` files (with `--proofs`) |
+| Proof status | WARNING | Reports undischarged/broken proof obligations from `.bpr`/`.bpo`/`.bps` files (with `--proofs`). The replay status in `.bps` takes precedence over the confidence stored with the `.bpr` proof tree, and broken proofs are counted as pending, matching Rodin |
 
 A model is reported as **VALID** when there are no ERROR-severity findings. Warnings and info findings are reported but do not affect validity.
 
@@ -94,7 +94,8 @@ When using `check --format json`, the output has the following structure:
       "reviewed": 0,
       "pending": 4,
       "unattempted": 2,
-      "broken": 0
+      "broken": 0,
+      "manualDischarged": 3
     }
   },
   "errors": [

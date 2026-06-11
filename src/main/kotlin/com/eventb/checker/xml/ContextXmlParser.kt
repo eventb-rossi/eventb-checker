@@ -56,7 +56,7 @@ class ContextXmlParser {
                 XmlConstants.AXIOM -> {
                     val label = child.getAttribute(XmlConstants.ATTR_LABEL)
                     val predicate = child.getAttrOrError(XmlConstants.ATTR_PREDICATE, filePath, errors)
-                    val theorem = child.getAttribute(XmlConstants.ATTR_THEOREM) == "true"
+                    val theorem = child.boolAttribute(XmlConstants.ATTR_THEOREM)
                     if (predicate.isNotEmpty()) axioms.add(Axiom(label, predicate, theorem))
                 }
             }

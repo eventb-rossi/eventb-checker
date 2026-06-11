@@ -24,7 +24,8 @@ class JsonReportFormatter : ReportFormatter {
                     .put("reviewed", ps.reviewed)
                     .put("pending", ps.pending)
                     .put("unattempted", ps.unattempted)
-                    .put("broken", ps.broken),
+                    .put("broken", ps.broken)
+                    .put("manualDischarged", ps.manualDischarged),
             )
         }
 

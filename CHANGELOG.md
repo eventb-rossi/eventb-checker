@@ -5,6 +5,12 @@
 ### Changed
 
 - **Breaking:** definite type conflicts (e.g. `a ∈ AUCTIONS ↦ item`, where the right-hand side of `∈` is a pair rather than a set) are now reported as errors (EB006) and make the model invalid, matching Rodin's static checker. Identifiers whose types cannot be inferred remain warnings under the new EB020 "Unknown type" rule, since they usually reflect constructs the checker does not fully model (e.g. primed witness variables).
+- Proof status now takes each obligation's confidence from the `.bps` replay status; the confidence stored with the `.bpr` proof tree is used only for obligations that have no status entry. A status entry without a confidence attribute counts as unattempted (Rodin serializes unattempted that way). The obligation list itself now falls back from `.bpo` to `.bps` before `.bpr`. Together these stop stale `.bpr` trees (including proofs for obligations that no longer exist) from inflating the discharged count.
+- Proof obligations marked broken (`psBroken="true"`) are counted as pending instead of discharged or reviewed, matching Rodin's treatment of non-replayable proofs, and are reported with a single "Broken proof" warning instead of also being flagged undischarged.
+
+### Added
+
+- `manualDischarged` count in the proof summary (text and JSON output): discharged obligations whose proof was completed manually (`psManual="true"`).
 
 ## [1.4] - 2026-06-10
 

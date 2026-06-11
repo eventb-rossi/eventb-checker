@@ -37,6 +37,10 @@ internal fun Element.childElements(): List<Element> {
     return result
 }
 
+internal fun Element.intAttribute(attrName: String): Int? = getAttribute(attrName).toIntOrNull()
+
+internal fun Element.boolAttribute(attrName: String): Boolean = getAttribute(attrName) == "true"
+
 internal fun Element.getAttrOrError(attrName: String, filePath: String, errors: MutableList<ValidationError>): String {
     val value = getAttribute(attrName)
     if (value.isEmpty()) {

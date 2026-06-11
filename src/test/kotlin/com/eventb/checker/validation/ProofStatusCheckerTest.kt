@@ -39,6 +39,13 @@ class ProofStatusCheckerTest {
         proofStatusFiles = psFiles,
     )
 
+    private fun check(bpr: String, bps: String): ProofStatusResult = checker.check(
+        contents(
+            proofFiles = listOf(entry("project/M0.bpr", bpr)),
+            psFiles = listOf(entry("project/M0.bps", bps)),
+        ),
+    )
+
     @Test
     fun `parse bpr with mix of discharged and pending POs`() {
         val bpr = bprXml(
@@ -103,12 +110,7 @@ class ProofStatusCheckerTest {
             """<org.eventb.core.psStatus name="inc/inv1/INV" org.eventb.core.psManual="false" org.eventb.core.psBroken="true"/>""",
         )
 
-        val result = checker.check(
-            contents(
-                proofFiles = listOf(entry("project/M0.bpr", bpr)),
-                psFiles = listOf(entry("project/M0.bps", bps)),
-            ),
-        )
+        val result = check(bpr, bps)
 
         assertThat(result.obligations[0].manual).isTrue()
         assertThat(result.obligations[0].broken).isFalse()
@@ -201,6 +203,124 @@ class ProofStatusCheckerTest {
         assertThat(byName["g"]!!.confidence).isEqualTo(ProofConfidence.PENDING)
         assertThat(byName["h"]!!.confidence).isEqualTo(ProofConfidence.UNATTEMPTED)
         assertThat(byName["i"]!!.confidence).isEqualTo(ProofConfidence.UNATTEMPTED)
+    }
+
+    @Test
+    fun `bps confidence overrides stale bpr proof tree confidence`() {
+        val bpr = bprXml(
+            """<org.eventb.core.prProof name="INIT/inv1/INV" org.eventb.core.confidence="1000"/>""",
+            """<org.eventb.core.prProof name="inc/inv1/INV" org.eventb.core.confidence="1000"/>""",
+        )
+        val bps = bpsXml(
+            """<org.eventb.core.psStatus name="INIT/inv1/INV" org.eventb.core.confidence="1000" org.eventb.core.psManual="false"/>""",
+            """<org.eventb.core.psStatus name="inc/inv1/INV" org.eventb.core.confidence="0" org.eventb.core.psManual="false"/>""",
+        )
+
+        val result = check(bpr, bps)
+
+        assertThat(result.summary.discharged).isEqualTo(1)
+        assertThat(result.summary.pending).isEqualTo(1)
+        val byName = result.obligations.associateBy { it.name }
+        assertThat(byName["inc/inv1/INV"]!!.confidence).isEqualTo(ProofConfidence.PENDING)
+    }
+
+    @Test
+    fun `broken proof is not counted as discharged or reviewed`() {
+        val bpr = bprXml(
+            """<org.eventb.core.prProof name="INIT/inv1/INV" org.eventb.core.confidence="1000"/>""",
+            """<org.eventb.core.prProof name="inc/inv1/INV" org.eventb.core.confidence="1000"/>""",
+            """<org.eventb.core.prProof name="inc/grd1/WD" org.eventb.core.confidence="500"/>""",
+        )
+        val bps = bpsXml(
+            """<org.eventb.core.psStatus name="INIT/inv1/INV" org.eventb.core.confidence="1000" org.eventb.core.psManual="false"/>""",
+            """<org.eventb.core.psStatus name="inc/inv1/INV" org.eventb.core.confidence="1000" org.eventb.core.psBroken="true" org.eventb.core.psManual="false"/>""",
+            """<org.eventb.core.psStatus name="inc/grd1/WD" org.eventb.core.confidence="500" org.eventb.core.psBroken="true" org.eventb.core.psManual="false"/>""",
+        )
+
+        val result = check(bpr, bps)
+
+        assertThat(result.summary.discharged).isEqualTo(1)
+        assertThat(result.summary.reviewed).isEqualTo(0)
+        assertThat(result.summary.pending).isEqualTo(2)
+        assertThat(result.summary.broken).isEqualTo(2)
+        val byName = result.obligations.associateBy { it.name }
+        assertThat(byName["inc/inv1/INV"]!!.confidence).isEqualTo(ProofConfidence.PENDING)
+        assertThat(byName["inc/inv1/INV"]!!.broken).isTrue()
+        assertThat(byName["inc/grd1/WD"]!!.confidence).isEqualTo(ProofConfidence.PENDING)
+    }
+
+    @Test
+    fun `broken proof produces a single warning`() {
+        val bpr = bprXml(
+            """<org.eventb.core.prProof name="inc/inv1/INV" org.eventb.core.confidence="1000"/>""",
+        )
+        val bps = bpsXml(
+            """<org.eventb.core.psStatus name="inc/inv1/INV" org.eventb.core.confidence="1000" org.eventb.core.psBroken="true" org.eventb.core.psManual="false"/>""",
+        )
+
+        val result = check(bpr, bps)
+
+        assertThat(result.errors).singleElement().satisfies({
+            assertThat(it.message).contains("Broken proof")
+        })
+    }
+
+    @Test
+    fun `bps entry without confidence attribute counts as unattempted`() {
+        // Rodin serializes UNATTEMPTED (-99) by omitting the confidence attribute,
+        // so the stale .bpr proof-tree confidence must not be used in its place.
+        val bpr = bprXml(
+            """<org.eventb.core.prProof name="INIT/inv1/INV" org.eventb.core.confidence="1000"/>""",
+        )
+        val bps = bpsXml(
+            """<org.eventb.core.psStatus name="INIT/inv1/INV" org.eventb.core.psManual="false"/>""",
+        )
+
+        val result = check(bpr, bps)
+
+        assertThat(result.summary.discharged).isEqualTo(0)
+        assertThat(result.summary.unattempted).isEqualTo(1)
+    }
+
+    @Test
+    fun `bps provides the obligation list when bpo files are absent`() {
+        // The .bpr may hold stale trees for POs that no longer exist; the .bps has
+        // exactly one status entry per live PO and takes precedence as the source.
+        val bpr = bprXml(
+            """<org.eventb.core.prProof name="INIT/inv1/INV" org.eventb.core.confidence="1000"/>""",
+            """<org.eventb.core.prProof name="deleted/inv9/INV" org.eventb.core.confidence="1000"/>""",
+        )
+        val bps = bpsXml(
+            """<org.eventb.core.psStatus name="INIT/inv1/INV" org.eventb.core.confidence="1000" org.eventb.core.psManual="false"/>""",
+            """<org.eventb.core.psStatus name="inc/inv1/INV" org.eventb.core.confidence="0" org.eventb.core.psManual="false"/>""",
+        )
+
+        val result = check(bpr, bps)
+
+        assertThat(result.summary.total).isEqualTo(2)
+        assertThat(result.summary.discharged).isEqualTo(1)
+        assertThat(result.summary.pending).isEqualTo(1)
+        assertThat(result.obligations.map { it.name }).containsExactlyInAnyOrder("INIT/inv1/INV", "inc/inv1/INV")
+    }
+
+    @Test
+    fun `manually discharged POs are counted separately`() {
+        val bpr = bprXml(
+            """<org.eventb.core.prProof name="INIT/inv1/INV" org.eventb.core.confidence="1000"/>""",
+            """<org.eventb.core.prProof name="inc/inv1/INV" org.eventb.core.confidence="1000"/>""",
+            """<org.eventb.core.prProof name="inc/grd1/WD" org.eventb.core.confidence="0"/>""",
+        )
+        val bps = bpsXml(
+            """<org.eventb.core.psStatus name="INIT/inv1/INV" org.eventb.core.confidence="1000" org.eventb.core.psManual="false"/>""",
+            """<org.eventb.core.psStatus name="inc/inv1/INV" org.eventb.core.confidence="1000" org.eventb.core.psManual="true"/>""",
+            """<org.eventb.core.psStatus name="inc/grd1/WD" org.eventb.core.confidence="0" org.eventb.core.psManual="true"/>""",
+        )
+
+        val result = check(bpr, bps)
+
+        assertThat(result.summary.discharged).isEqualTo(2)
+        // inc/grd1/WD has a manual attempt but is not discharged, so it must not count.
+        assertThat(result.summary.manualDischarged).isEqualTo(1)
     }
 
     @Test

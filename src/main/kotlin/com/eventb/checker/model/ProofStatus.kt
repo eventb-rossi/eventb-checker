@@ -18,4 +18,5 @@ data class ProofStatusSummary(
     val pending: Int,
     val unattempted: Int,
     val broken: Int,
+    val manualDischarged: Int,
 )
