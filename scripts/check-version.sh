@@ -47,6 +47,11 @@ if ! grep -q "eventb-rossi/eventb-checker@${tag}" README.md; then
     emit_error "README.md" "README.md does not reference 'eventb-rossi/eventb-checker@${tag}'"
 fi
 
+# 5. Check CHANGELOG.md has release notes for this version
+if ! "$(dirname "$0")/release-notes.sh" "$tag" > /dev/null 2>&1; then
+    emit_error "CHANGELOG.md" "CHANGELOG.md has no (or an empty) '## [${version}]' section"
+fi
+
 if [ "$errors" -gt 0 ]; then
     echo "Found $errors version inconsistency(ies). Fix and re-tag."
     exit 1
