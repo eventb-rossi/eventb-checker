@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **Breaking:** definite type conflicts (e.g. `a ∈ AUCTIONS ↦ item`, where the right-hand side of `∈` is a pair rather than a set) are now reported as errors (EB006) and make the model invalid, matching Rodin's static checker. Identifiers whose types cannot be inferred remain warnings under the new EB020 "Unknown type" rule, since they usually reflect constructs the checker does not fully model (e.g. primed witness variables).
+
 ## [1.4] - 2026-06-10
 
 ### Fixed

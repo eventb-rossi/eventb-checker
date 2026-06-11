@@ -10,6 +10,7 @@ import org.eventb.core.ast.FormulaFactory
 import org.eventb.core.ast.IParseResult
 import org.eventb.core.ast.ITypeEnvironment
 import org.eventb.core.ast.ITypeEnvironmentBuilder
+import org.eventb.core.ast.ProblemKind
 
 class TypeChecker(private val ff: FormulaFactory = FormulaFactory.getDefault()) {
 
@@ -438,14 +439,24 @@ class TypeChecker(private val ff: FormulaFactory = FormulaFactory.getDefault()) 
             }
         } else if (undeclaredIdentifiers.isEmpty()) {
             for (problem in tcResult.problems) {
+                // TypeUnknown (and TypeCheckFailure, its variant for type variables without
+                // a source location) reflects constructs whose types the checker cannot
+                // infer (e.g. primed witness variables), not a defect in the model itself.
+                val unknownType = problem.message == ProblemKind.TypeUnknown ||
+                    problem.message == ProblemKind.TypeCheckFailure
+                val (severity, rule, message) = if (unknownType) {
+                    Triple(ValidationSeverity.WARNING, ValidationRules.UNKNOWN_TYPE, "$problem")
+                } else {
+                    Triple(ValidationSeverity.ERROR, ValidationRules.TYPE_ERROR, "Type error: $problem")
+                }
                 errors.add(
                     ValidationError(
                         filePath = filePath,
-                        severity = ValidationSeverity.WARNING,
-                        message = "Type error: $problem",
+                        severity = severity,
+                        message = message,
                         element = elementLabel,
                         formula = formula,
-                        ruleId = ValidationRules.TYPE_ERROR.id,
+                        ruleId = rule.id,
                     ),
                 )
             }

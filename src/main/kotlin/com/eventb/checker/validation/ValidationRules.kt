@@ -37,7 +37,7 @@ object ValidationRules {
     val TYPE_ERROR = RuleDescriptor(
         "EB006",
         "Type error",
-        "A formula failed type checking against the inferred type environment.",
+        "A formula has a definite type conflict (e.g. mismatched operand types) against the inferred type environment.",
     )
 
     val CIRCULAR_EXTENDS = RuleDescriptor(
@@ -118,6 +118,13 @@ object ValidationRules {
         "Multiple files define the same machine or context, so lower-priority definitions are ignored.",
     )
 
+    val UNKNOWN_TYPE = RuleDescriptor(
+        "EB020",
+        "Unknown type",
+        "An identifier's type could not be inferred from the available declarations; this often reflects " +
+            "constructs the checker does not fully model (e.g. primed witness variables) rather than a model defect.",
+    )
+
     val ALL: List<RuleDescriptor> = listOf(
         XML_PARSE_ERROR, UNEXPECTED_XML_ROOT, MISSING_XML_ATTRIBUTE,
         CAMILLE_PARSE_ERROR, FORMULA_PARSE_ERROR,
@@ -126,6 +133,6 @@ object ValidationRules {
         DEAD_VARIABLE, UNMODIFIED_VARIABLE, DEAD_CONSTANT,
         INCOMPLETE_INITIALISATION,
         UNDISCHARGED_PROOF, BROKEN_PROOF, PROOF_FILE_PARSE_ERROR,
-        UNDECLARED_IDENTIFIER, DUPLICATE_COMPONENT,
+        UNDECLARED_IDENTIFIER, DUPLICATE_COMPONENT, UNKNOWN_TYPE,
     )
 }

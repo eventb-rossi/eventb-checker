@@ -93,8 +93,66 @@ class TypeCheckerTest {
 
         val errors = typeChecker.checkProject(project)
 
-        assertThat(errors).allSatisfy { assertThat(it.severity).isEqualTo(ValidationSeverity.WARNING) }
+        assertThat(errors).allSatisfy { assertThat(it.severity).isEqualTo(ValidationSeverity.ERROR) }
         assertThat(errors).filteredOn { it.message.contains("Type error") }.isNotEmpty
+        assertThat(errors).allSatisfy { assertThat(it.ruleId).isEqualTo(ValidationRules.TYPE_ERROR.id) }
+    }
+
+    @Test
+    fun `maplet on right side of membership is a type error`() {
+        // Regression: auction.zip guard `a ∈ AUCTIONS ↦ item` — the right-hand side is a
+        // pair ℙ(AUCTIONS)×ℙ(ITEMS), not a set, so the membership cannot be typed.
+        val project = project(
+            contexts = listOf(
+                context(
+                    "C1",
+                    carrierSets = listOf(CarrierSet("AUCTIONS", "AUCTIONS"), CarrierSet("ITEMS", "ITEMS")),
+                ),
+            ),
+            machines = listOf(
+                machine(
+                    "M1",
+                    seesContexts = listOf("C1"),
+                    variables = listOf(Variable("item", "item")),
+                    invariants = listOf(Invariant("inv1", "item ⊆ ITEMS", false)),
+                    events = listOf(
+                        event(
+                            "CreateAuction",
+                            parameters = listOf(Parameter("a", "a")),
+                            guards = listOf(Guard("grd1", "a ∈ AUCTIONS ↦ item", false)),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val errors = typeChecker.checkProject(project)
+
+        val typeErrors = errors.filter { it.ruleId == ValidationRules.TYPE_ERROR.id }
+        assertThat(typeErrors).isNotEmpty
+        assertThat(typeErrors).allSatisfy { assertThat(it.severity).isEqualTo(ValidationSeverity.ERROR) }
+        assertThat(typeErrors.map { it.element }).contains("CreateAuction/grd1")
+    }
+
+    @Test
+    fun `unresolved identifier type stays a warning`() {
+        val project = project(
+            machines = listOf(
+                machine(
+                    "M1",
+                    variables = listOf(Variable("n", "n")),
+                    invariants = listOf(Invariant("inv1", "n = n", false)),
+                ),
+            ),
+        )
+
+        val errors = typeChecker.checkProject(project)
+
+        assertThat(errors).isNotEmpty
+        assertThat(errors).allSatisfy {
+            assertThat(it.severity).isEqualTo(ValidationSeverity.WARNING)
+            assertThat(it.ruleId).isEqualTo(ValidationRules.UNKNOWN_TYPE.id)
+        }
     }
 
     @Test

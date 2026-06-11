@@ -10,7 +10,8 @@ A command-line validator for [Event-B](https://www.event-b.org/) models. It read
 | Camille syntax | ERROR | Parses `.eventb` files using the Camille textual notation grammar |
 | Formula syntax | ERROR | Parses predicates, expressions, and assignments using the Rodin AST library |
 | Undeclared identifiers | ERROR | Reports identifiers not declared in the surrounding context, machine, or event scope |
-| Type checking | WARNING | Type-checks formulas against inferred type environments |
+| Type checking | ERROR | Reports definite type conflicts (e.g. mismatched operand types) found by the Rodin AST type checker |
+| Unknown types | WARNING | Reports identifiers whose types cannot be inferred (often constructs the checker does not fully model, such as primed witness variables) |
 | Cross-reference integrity | ERROR | Verifies SEES, REFINES, and EXTENDS targets exist in the project |
 | Well-definedness | INFO | Reports non-trivial well-definedness conditions (e.g., division by zero) |
 | Dead identifiers | WARNING | Detects declared variables/constants never referenced in any formula |
