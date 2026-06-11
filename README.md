@@ -210,7 +210,7 @@ External GitLab projects can validate Event-B models by including the reusable t
 
 ```yaml
 include:
-  - remote: 'https://raw.githubusercontent.com/eventb-rossi/eventb-checker/master/.gitlab/ci/eventb-checker.yml'
+  - remote: 'https://raw.githubusercontent.com/eventb-rossi/eventb-checker/main/.gitlab/ci/eventb-checker.yml'
 
 variables:
   EVENTB_MODEL_GLOB: "models/*.zip"
@@ -237,7 +237,7 @@ To build the checker from source instead of downloading a release JAR:
 
 ```yaml
 include:
-  - remote: 'https://raw.githubusercontent.com/eventb-rossi/eventb-checker/master/.gitlab/ci/eventb-checker.yml'
+  - remote: 'https://raw.githubusercontent.com/eventb-rossi/eventb-checker/main/.gitlab/ci/eventb-checker.yml'
 
 eventb-validate:
   extends: .eventb-validate-src
@@ -251,7 +251,7 @@ Override the concrete job to add your own configuration:
 
 ```yaml
 include:
-  - remote: 'https://raw.githubusercontent.com/eventb-rossi/eventb-checker/master/.gitlab/ci/eventb-checker.yml'
+  - remote: 'https://raw.githubusercontent.com/eventb-rossi/eventb-checker/main/.gitlab/ci/eventb-checker.yml'
 
 eventb-validate:
   extends: .eventb-validate-jar
@@ -260,7 +260,7 @@ eventb-validate:
     EVENTB_SHOW_INFO: "true"
   only:
     - merge_requests
-    - master
+    - main
 ```
 
 ## Dependencies
