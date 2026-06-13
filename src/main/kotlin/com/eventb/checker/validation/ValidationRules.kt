@@ -125,6 +125,19 @@ object ValidationRules {
             "constructs the checker does not fully model (e.g. primed witness variables) rather than a model defect.",
     )
 
+    val DUPLICATE_IDENTIFIER = RuleDescriptor(
+        "EB021",
+        "Duplicate identifier",
+        "An identifier (variable, constant, carrier set, or event parameter) is declared more than once " +
+            "within the same scope.",
+    )
+
+    val DUPLICATE_LABEL = RuleDescriptor(
+        "EB022",
+        "Duplicate label",
+        "A label (invariant, event, guard, action, axiom, or witness) is used more than once within the same scope.",
+    )
+
     val ALL: List<RuleDescriptor> = listOf(
         XML_PARSE_ERROR, UNEXPECTED_XML_ROOT, MISSING_XML_ATTRIBUTE,
         CAMILLE_PARSE_ERROR, FORMULA_PARSE_ERROR,
@@ -134,5 +147,6 @@ object ValidationRules {
         INCOMPLETE_INITIALISATION,
         UNDISCHARGED_PROOF, BROKEN_PROOF, PROOF_FILE_PARSE_ERROR,
         UNDECLARED_IDENTIFIER, DUPLICATE_COMPONENT, UNKNOWN_TYPE,
+        DUPLICATE_IDENTIFIER, DUPLICATE_LABEL,
     )
 }

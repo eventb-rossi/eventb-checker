@@ -18,6 +18,7 @@ A command-line validator for [Event-B](https://www.event-b.org/) models. It read
 | Unmodified variables | INFO | Flags variables that are never assigned by any event action |
 | INITIALISATION completeness | WARNING | Checks that INITIALISATION assigns all declared machine variables |
 | Duplicate component definitions | WARNING | Warns when the same machine or context is defined multiple times within the parsed input set |
+| Duplicate identifiers/labels | ERROR | Reports an identifier (variable, constant, carrier set, parameter) or label (invariant, event, guard, action, axiom, witness) declared more than once within the same scope, matching Rodin's static checker |
 | Proof status | WARNING | Reports undischarged/broken proof obligations from `.bpr`/`.bpo`/`.bps` files (with `--proofs`). The replay status in `.bps` takes precedence over the confidence stored with the `.bpr` proof tree, and broken proofs are counted as pending, matching Rodin |
 
 A model is reported as **VALID** when there are no ERROR-severity findings. Warnings and info findings are reported but do not affect validity.

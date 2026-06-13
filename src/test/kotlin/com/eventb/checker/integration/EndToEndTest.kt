@@ -391,6 +391,36 @@ class EndToEndTest {
     }
 
     @Test
+    fun `duplicate invariant label is reported as an error end-to-end`() {
+        val zip = createZip(
+            tempDir,
+            "project/M.bum" to """
+                <org.eventb.core.machineFile name="M">
+                    <org.eventb.core.variable org.eventb.core.identifier="x" org.eventb.core.label="x"/>
+                    <org.eventb.core.invariant org.eventb.core.label="inv1"
+                        org.eventb.core.predicate="x ∈ ℕ" org.eventb.core.theorem="false"/>
+                    <org.eventb.core.invariant org.eventb.core.label="inv1"
+                        org.eventb.core.predicate="x ≥ 0" org.eventb.core.theorem="false"/>
+                    <org.eventb.core.event org.eventb.core.label="INITIALISATION"
+                        org.eventb.core.convergence="0" org.eventb.core.extended="false">
+                        <org.eventb.core.action org.eventb.core.label="act1"
+                            org.eventb.core.assignment="x ≔ 0"/>
+                    </org.eventb.core.event>
+                </org.eventb.core.machineFile>
+            """.trimIndent(),
+        )
+
+        val result = validator.validate(zip.absolutePath)
+
+        assertThat(result.isValid).isFalse()
+        assertThat(result.errors).anyMatch {
+            it.severity == ValidationSeverity.ERROR &&
+                it.ruleId == ValidationRules.DUPLICATE_LABEL.id &&
+                it.element == "inv1"
+        }
+    }
+
+    @Test
     fun `proof status reports undischarged POs as warnings`() {
         val zip = createZip(
             tempDir,

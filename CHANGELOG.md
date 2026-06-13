@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- Duplicate identifier (EB021) and duplicate label (EB022) checks. The checker now reports, as errors, an identifier (variable, constant, carrier set, or event parameter) or a label (invariant, event, guard, action, axiom, or witness) that is declared more than once within the same scope, matching Rodin's static checker. Identifiers and labels are separate namespaces, so a variable and an invariant that share a spelling do not conflict. This complements the existing cross-file EB019 "Duplicate component" warning.
+
 ## [1.5] - 2026-06-11
 
 ### Changed

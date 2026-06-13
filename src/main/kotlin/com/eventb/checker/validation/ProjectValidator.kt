@@ -17,6 +17,7 @@ class ProjectValidator(private val checkProofs: Boolean = false) {
     private val wdChecker = WellDefinednessChecker()
     private val identifierAnalyzer = IdentifierAnalyzer()
     private val eventCompletenessChecker = EventCompletenessChecker()
+    private val duplicateNameChecker = DuplicateNameChecker()
     private val proofStatusChecker = ProofStatusChecker()
 
     fun validate(modelPath: String): ValidationResult {
@@ -39,6 +40,7 @@ class ProjectValidator(private val checkProofs: Boolean = false) {
         allErrors.addAll(wdChecker.check(typeCheckResult.checkedFormulas))
         allErrors.addAll(identifierAnalyzer.analyze(project, typeCheckResult.parsedFormulas))
         allErrors.addAll(eventCompletenessChecker.check(project, typeCheckResult.parsedFormulas))
+        allErrors.addAll(duplicateNameChecker.check(project))
 
         val crossRefErrors = crossRefValidator.validate(project)
         allErrors.addAll(crossRefErrors)
