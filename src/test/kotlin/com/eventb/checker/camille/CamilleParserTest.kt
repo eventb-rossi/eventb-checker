@@ -510,7 +510,10 @@ class CamilleParserTest {
     }
 
     @Test
-    fun `parses comma-separated parameters in any block`() {
+    fun `rejects comma-separated parameters in any block`() {
+        // Comma-separated declaration lists are not valid in any real Event-B tool
+        // (Camille/CamilleX/Rodin use whitespace separation). The checker must report
+        // a parse error rather than silently rewriting the commas.
         val input = """
             MACHINE M
             VARIABLES n
@@ -534,24 +537,10 @@ class CamilleParserTest {
 
         val result = parser.parse(input, "M.eventb")
 
-        assertThat(result.errors).isEmpty()
-        assertThat(result.machine).isNotNull
-        val evt = result.machine!!.events[1]
-        assertThat(evt.parameters).hasSize(2)
-        assertThat(evt.parameters[0].identifier).isEqualTo("x")
-        assertThat(evt.parameters[1].identifier).isEqualTo("y")
-    }
-
-    @Test
-    fun `normalizeCommaLists does not modify formula lines`() {
-        val input = "@inv1 ∀x, y·x ∈ S ∧ y ∈ S ⇒ x = y"
-        assertThat(CamilleParser.normalizeCommaLists(input)).isEqualTo(input)
-    }
-
-    @Test
-    fun `normalizeCommaLists removes commas from identifier lists`() {
-        val input = "    file, parent, name"
-        assertThat(CamilleParser.normalizeCommaLists(input)).isEqualTo("    file  parent  name")
+        assertThat(result.machine).isNull()
+        assertThat(result.errors).isNotEmpty
+        assertThat(result.errors[0].severity).isEqualTo(ValidationSeverity.ERROR)
+        assertThat(result.errors[0].message).contains("Camille parse error")
     }
 
     @Test

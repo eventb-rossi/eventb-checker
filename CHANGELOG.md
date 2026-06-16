@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- The Camille (`.eventb`) parser no longer rewrites comma-separated identifier lists in declarations (`sets`, `constants`, `variables`, `any`, `sees`) into whitespace-separated ones before parsing. Such lists are invalid in every real Event-B tool (Camille, CamilleX, and Rodin all separate declared identifiers by whitespace; commas appear only inside formulas), so the checker now reports a Camille parse error instead of silently accepting them. Tolerance for uppercase keywords and label-first `theorem` notation is unchanged.
+
 ## [1.6] - 2026-06-13
 
 ### Added

@@ -62,9 +62,6 @@ open class CamilleParser {
 
         private val KEYWORD_PATTERN = Regex("\\b(${CAMILLE_KEYWORDS.joinToString("|")})\\b")
 
-        /** Lines that contain only identifiers, commas, and whitespace (no formulas/operators). */
-        private val IDENT_LIST_LINE = Regex("[\\w,\\s]+")
-
         /**
          * Matches `@label theorem predicate` — the file puts the label before the keyword,
          * but Camille expects `theorem @label predicate`.
@@ -72,21 +69,6 @@ open class CamilleParser {
         private val LABEL_THEOREM_PATTERN = Regex("""^(\s*)(@\w+)\s+theorem\s+(.*)$""")
 
         fun normalizeKeywords(input: String): String = input.replace(KEYWORD_PATTERN) { it.value.lowercase() }
-
-        /**
-         * Replaces commas with spaces on lines that are pure identifier lists
-         * (e.g. `file, parent, name` in an `any` block or `sees A, B`).
-         * Formula lines starting with `@` and lines containing mathematical
-         * operators are left untouched.
-         */
-        fun normalizeCommaLists(input: String): String = input.lines().joinToString("\n") { line ->
-            val trimmed = line.trim()
-            if (trimmed.isNotEmpty() && !trimmed.startsWith("@") && IDENT_LIST_LINE.matches(trimmed)) {
-                line.replace(",", " ")
-            } else {
-                line
-            }
-        }
 
         /**
          * Swaps `@label theorem predicate` to `theorem @label predicate`.
@@ -103,7 +85,7 @@ open class CamilleParser {
             }
         }
 
-        fun normalize(input: String): String = normalizeTheoremOrder(normalizeCommaLists(normalizeKeywords(input)))
+        fun normalize(input: String): String = normalizeTheoremOrder(normalizeKeywords(input))
     }
 
     fun parse(input: String, filePath: String): CamilleParseResult = parseNormalized(normalize(input), filePath)
