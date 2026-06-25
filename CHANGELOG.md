@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8] - 2026-06-25
+
+### Added
+
+- Support for Rodin "Archive File" exports that bundle several top-level project directories into one `.zip` (or directory tree). Each project is now validated independently: `SEES`/`REFINES`/`EXTENDS` references stay project-local, so two sibling projects may reuse component names (both containing `M0`/`C0`, say) without the checker emitting spurious EB019 duplicate-component warnings, dropping one copy, or letting a reference in one project resolve to an identically named component in another. Findings are merged into a single flat list with project-prefixed paths (e.g. `ProjectA/M0.bum`); summary counts and proof totals are summed across projects. Single-project archives, directories, and `.eventb` files are unchanged.
+- Installation instructions for the package-manager distributions (Homebrew, Scoop, APT, Copr, Gentoo) in the README.
+
 ## [1.7] - 2026-06-17
 
 ### Changed
