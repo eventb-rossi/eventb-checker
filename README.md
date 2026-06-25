@@ -27,7 +27,50 @@ A model is reported as **VALID** when there are no ERROR-severity findings. Warn
 
 - Java 21+
 
-## Build
+## Installation
+
+### Homebrew (macOS)
+
+```sh
+brew tap eventb-rossi/tap
+brew install eventb-checker
+```
+
+### Scoop (Windows)
+
+```powershell
+scoop bucket add eventb https://github.com/eventb-rossi/scoop-eventb
+scoop install eventb/eventb-checker
+```
+
+### APT (Ubuntu / Debian)
+
+```sh
+curl -fsSL https://eventb-rossi.github.io/apt/KEY.gpg \
+  | sudo gpg --dearmor -o /etc/apt/keyrings/eventb.gpg
+. /etc/os-release
+echo "deb [signed-by=/etc/apt/keyrings/eventb.gpg] https://eventb-rossi.github.io/apt ${VERSION_CODENAME} main" \
+  | sudo tee /etc/apt/sources.list.d/eventb.list
+sudo apt update
+sudo apt install eventb-checker
+```
+
+### Copr (Fedora / RHEL)
+
+```sh
+sudo dnf copr enable @eventb-rossi/eventb-copr
+sudo dnf install eventb-checker
+```
+
+### Gentoo
+
+```sh
+eselect repository enable eventb-rossi
+emaint sync -r eventb-rossi
+emerge sci-mathematics/eventb-checker
+```
+
+## Build from Source
 
 ```bash
 ./gradlew build
