@@ -198,6 +198,28 @@ class MultiProjectTest {
     }
 
     @Test
+    fun `directory with project subdirectories is split into projects`() {
+        // The same multi-project source as a directory tree rather than a .zip: an input
+        // directory whose subdirectories are self-contained projects must be split the same way.
+        val root = File(tempDir, "export")
+        for (entry in listOf(contextC0("ProjectA"), machineM0("ProjectA"), contextC0("ProjectB"), machineM0("ProjectB"))) {
+            val (relativePath, content) = entry
+            val file = File(root, relativePath)
+            file.parentFile.mkdirs()
+            file.writeText(content)
+        }
+
+        val result = ProjectValidator().validate(root.absolutePath)
+
+        assertThat(result.isValid)
+            .describedAs("Validation errors: %s", result.errors)
+            .isTrue()
+        assertThat(result.summary.machineCount).isEqualTo(2)
+        assertThat(result.summary.contextCount).isEqualTo(2)
+        assertThat(result.errors).noneMatch { it.ruleId == ValidationRules.DUPLICATE_COMPONENT.id }
+    }
+
+    @Test
     fun `flat archive with no project directory is treated as a single project`() {
         val zip = createZip(
             tempDir,

@@ -153,9 +153,11 @@ class ModelImporterTest {
 
         val contents = importer.import(projectDir.absolutePath)
 
+        // Files under subdirectories are keyed by their subdirectory (each is its own project),
+        // so the "project/" input-directory name is not prepended; import order stays sorted.
         assertThat(contents.machines.map { it.path }).containsExactly(
-            "project/a/A.bum",
-            "project/b/Z.bum",
+            "a/A.bum",
+            "b/Z.bum",
         )
     }
 

@@ -102,7 +102,12 @@ class ModelImporter {
             .sortedBy { normalizeModelPath(it.relativeTo(dir).path) }
             .forEach { file ->
                 val relativePath = normalizeModelPath(file.relativeTo(dir).path)
-                val entryPath = normalizeModelPath("$dirName/$relativePath")
+                // A directory holding several project subdirectories is a multi-project source:
+                // a file under a subdirectory is keyed by that subdirectory so partitioning splits
+                // the projects (matching a multi-project .zip). A file directly under the input
+                // directory belongs to it as a single project, prefixed with the directory's own
+                // name — exactly as a single-project .zip carries its project directory.
+                val entryPath = if ('/' in relativePath) relativePath else "$dirName/$relativePath"
                 acc.categorize(entryPath, file.readBytes())
             }
 
