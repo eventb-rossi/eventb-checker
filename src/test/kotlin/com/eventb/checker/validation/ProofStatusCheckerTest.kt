@@ -360,8 +360,8 @@ class ProofStatusCheckerTest {
         assertThat(result.summary.total).isEqualTo(2)
         assertThat(result.summary.discharged).isEqualTo(1)
         assertThat(result.summary.pending).isEqualTo(1)
-        assertThat(result.obligations[0].component).isEqualTo("M0")
-        assertThat(result.obligations[1].component).isEqualTo("M1")
+        assertThat(result.obligations[0].component).isEqualTo("project/M0")
+        assertThat(result.obligations[1].component).isEqualTo("project/M1")
     }
 
     @Test
@@ -373,7 +373,7 @@ class ProofStatusCheckerTest {
         val result = checker.check(contents(proofFiles = listOf(entry("""project\nested\M0.bpr""", bpr))))
 
         assertThat(result.obligations).hasSize(1)
-        assertThat(result.obligations.single().component).isEqualTo("M0")
+        assertThat(result.obligations.single().component).isEqualTo("project/nested/M0")
     }
 
     @Test

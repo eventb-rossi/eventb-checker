@@ -21,7 +21,26 @@ data class ModelContents(
     val proofFiles: List<ModelEntry> = emptyList(),
     val proofObligationFiles: List<ModelEntry> = emptyList(),
     val proofStatusFiles: List<ModelEntry> = emptyList(),
-)
+    val projectFiles: List<ModelEntry> = emptyList(),
+) {
+    /** Every entry category in a fixed order; pairs with [fromEntryLists] so callers can
+     *  transform the categories generically instead of restating the field list by hand. */
+    fun entryLists(): List<List<ModelEntry>> =
+        listOf(machines, contexts, eventbFiles, proofFiles, proofObligationFiles, proofStatusFiles, projectFiles)
+
+    companion object {
+        /** Reassemble from lists in the same order [entryLists] produces. */
+        fun fromEntryLists(lists: List<List<ModelEntry>>) = ModelContents(
+            machines = lists[0],
+            contexts = lists[1],
+            eventbFiles = lists[2],
+            proofFiles = lists[3],
+            proofObligationFiles = lists[4],
+            proofStatusFiles = lists[5],
+            projectFiles = lists[6],
+        )
+    }
+}
 
 class ModelImporter {
 
@@ -97,6 +116,7 @@ class ModelImporter {
         val proofFiles = mutableListOf<ModelEntry>()
         val proofObligationFiles = mutableListOf<ModelEntry>()
         val proofStatusFiles = mutableListOf<ModelEntry>()
+        val projectFiles = mutableListOf<ModelEntry>()
 
         fun categorize(path: String, data: ByteArray) {
             val normalizedPath = normalizeModelPath(path)
@@ -108,10 +128,19 @@ class ModelImporter {
                 XmlConstants.EXT_PROOF -> proofFiles.add(ModelEntry(normalizedPath, data))
                 XmlConstants.EXT_PROOF_OBLIGATIONS -> proofObligationFiles.add(ModelEntry(normalizedPath, data))
                 XmlConstants.EXT_PROOF_STATUS -> proofStatusFiles.add(ModelEntry(normalizedPath, data))
+                XmlConstants.EXT_PROJECT -> projectFiles.add(ModelEntry(normalizedPath, data))
                 else -> Unit
             }
         }
 
-        fun build() = ModelContents(machines, contexts, eventbFiles, proofFiles, proofObligationFiles, proofStatusFiles)
+        fun build() = ModelContents(
+            machines,
+            contexts,
+            eventbFiles,
+            proofFiles,
+            proofObligationFiles,
+            proofStatusFiles,
+            projectFiles,
+        )
     }
 }

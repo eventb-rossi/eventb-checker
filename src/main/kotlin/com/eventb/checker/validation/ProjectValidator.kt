@@ -1,10 +1,14 @@
 package com.eventb.checker.validation
 
 import com.eventb.checker.ModelContents
+import com.eventb.checker.ModelEntry
 import com.eventb.checker.ModelImporter
 import com.eventb.checker.camille.CamilleParser
 import com.eventb.checker.model.EventBProject
+import com.eventb.checker.model.ProofStatusSummary
 import com.eventb.checker.xml.RodinXmlParser
+import com.eventb.checker.xml.childElements
+import com.eventb.checker.xml.parseXmlDocument
 import org.eventb.core.ast.FormulaFactory
 
 class ProjectValidator(private val checkProofs: Boolean = false) {
@@ -21,9 +25,14 @@ class ProjectValidator(private val checkProofs: Boolean = false) {
     private val proofStatusChecker = ProofStatusChecker()
 
     fun validate(modelPath: String): ValidationResult {
-        val importer = ModelImporter()
-        val contents = importer.import(modelPath)
-        return validate(contents)
+        val contents = ModelImporter().import(modelPath)
+        // A Rodin "Archive File" export may bundle several top-level project directories
+        // into one archive. Each is a self-contained, project-local Event-B project, so we
+        // validate them independently and merge the results rather than flattening them
+        // into a single namespace (which would cross-wire same-named components like M0/C0).
+        val projects = partitionByPrefix(contents)
+        if (projects.size <= 1) return validate(contents)
+        return projects.values.map { validate(it) }.merged()
     }
 
     fun validate(contents: ModelContents): ValidationResult {
@@ -71,9 +80,22 @@ class ProjectValidator(private val checkProofs: Boolean = false) {
      */
     fun dumpTypes(modelPath: String): TypeDump {
         val contents = ModelImporter().import(modelPath)
-        val project = parseProject(contents, mutableListOf())
-        return typeChecker.dumpTypes(project)
+        val projects = partitionByPrefix(contents)
+        if (projects.size <= 1) return dumpTypes(contents)
+
+        // Across multiple projects, identically-named components (M0/C0) would collide in the
+        // bare-name-keyed TypeDump, so qualify each with its project prefix to keep them all.
+        val contexts = linkedMapOf<String, Map<String, String>>()
+        val machines = linkedMapOf<String, MachineTypeDump>()
+        for ((prefix, project) in projects) {
+            val dump = dumpTypes(project)
+            for ((name, types) in dump.contexts) contexts["$prefix/$name"] = types
+            for ((name, types) in dump.machines) machines["$prefix/$name"] = types
+        }
+        return TypeDump(contexts, machines)
     }
+
+    private fun dumpTypes(contents: ModelContents): TypeDump = typeChecker.dumpTypes(parseProject(contents, mutableListOf()))
 
     private fun parseProject(contents: ModelContents, errors: MutableList<ValidationError>): EventBProject {
         val hasXmlInputs = contents.machines.isNotEmpty() || contents.contexts.isNotEmpty()
@@ -101,7 +123,8 @@ class ProjectValidator(private val checkProofs: Boolean = false) {
         val resolvedMachines = resolveDuplicateMachines(machines, errors)
         val resolvedContexts = resolveDuplicateContexts(contexts, errors)
 
-        val projectName = resolvedMachines.firstOrNull()?.filePath?.substringBefore("/")
+        val projectName = readProjectName(contents.projectFiles)
+            ?: resolvedMachines.firstOrNull()?.filePath?.substringBefore("/")
             ?: resolvedContexts.firstOrNull()?.filePath?.substringBefore("/")
             ?: contents.eventbFiles.firstOrNull()?.path?.substringBefore("/")?.takeIf { !hasXmlInputs }
             ?: "unknown"
@@ -169,5 +192,57 @@ class ProjectValidator(private val checkProofs: Boolean = false) {
         }
 
         return selectedByName.values.sortedBy { filePathOf(it) }
+    }
+
+    /**
+     * Group [contents] by top-level archive directory (the path segment before the first `/`),
+     * keyed by that prefix. A single-project archive, a directory, a single `.eventb` file, a
+     * flat archive (no directory), and an empty input all yield at most one prefix; only a
+     * genuine multi-project archive (more than one top-level directory) yields several. Each
+     * entry's path is scanned once, via a single [groupBy] per category.
+     */
+    private fun partitionByPrefix(contents: ModelContents): Map<String, ModelContents> {
+        val grouped = contents.entryLists().map { entries -> entries.groupBy { prefixOf(it.path) } }
+        val prefixes = grouped.flatMapTo(sortedSetOf<String>()) { it.keys }
+        return prefixes.associateWith { prefix ->
+            ModelContents.fromEntryLists(grouped.map { it[prefix].orEmpty() })
+        }
+    }
+
+    private fun prefixOf(path: String): String {
+        val slash = path.indexOf('/')
+        return if (slash >= 0) path.substring(0, slash) else ""
+    }
+
+    /** Combine the per-project results (always two or more) into one report: concatenate
+     *  errors, sum the summary counts. */
+    private fun List<ValidationResult>.merged(): ValidationResult {
+        val proofSummaries = mapNotNull { it.summary.proofSummary }
+        val summary = ValidationSummary(
+            machineCount = sumOf { it.summary.machineCount },
+            contextCount = sumOf { it.summary.contextCount },
+            formulaCount = sumOf { it.summary.formulaCount },
+            errorCount = sumOf { it.summary.errorCount },
+            warningCount = sumOf { it.summary.warningCount },
+            infoCount = sumOf { it.summary.infoCount },
+            proofSummary = if (proofSummaries.isEmpty()) null else proofSummaries.reduce(ProofStatusSummary::plus),
+        )
+        return ValidationResult(flatMap { it.errors }, summary)
+    }
+
+    /**
+     * The project name from the top-level Eclipse/Rodin `.project` descriptor, or null if
+     * absent/empty. Reads only the `<name>` that is a direct child of `<projectDescription>`
+     * — never a nested `<buildCommand><name>` (a builder id) — and ignores nested `.project`
+     * files.
+     */
+    private fun readProjectName(projectFiles: List<ModelEntry>): String? {
+        val descriptor = projectFiles.firstOrNull {
+            it.path.substringAfterLast('/') == ".project" && it.path.count { c -> c == '/' } <= 1
+        } ?: return null
+
+        val (doc, _) = parseXmlDocument(descriptor.inputStream())
+        val nameElement = doc?.documentElement?.childElements()?.firstOrNull { it.tagName == "name" } ?: return null
+        return nameElement.textContent?.trim()?.ifEmpty { null }
     }
 }

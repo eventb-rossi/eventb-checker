@@ -79,7 +79,10 @@ class ProofStatusChecker {
     ): List<T> {
         val result = mutableListOf<T>()
         for (entry in files) {
-            val component = entry.path.substringAfterLast('/').removeSuffix(suffix)
+            // Keep the project-directory prefix (e.g. "ProjectA/M0") so proof findings from
+            // sibling projects in a multi-project archive stay distinct, matching the prefixed
+            // file paths used by every other validator.
+            val component = entry.path.removeSuffix(suffix)
             val doc = parseXml(entry, errors) ?: continue
             for (child in doc.documentElement.childElements()) {
                 if (child.tagName == tag) {

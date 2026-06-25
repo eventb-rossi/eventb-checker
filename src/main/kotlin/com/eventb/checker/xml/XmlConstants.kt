@@ -60,4 +60,7 @@ object XmlConstants {
     const val EXT_PROOF = ".bpr"
     const val EXT_PROOF_OBLIGATIONS = ".bpo"
     const val EXT_PROOF_STATUS = ".bps"
+
+    // Eclipse/Rodin project descriptor
+    const val EXT_PROJECT = ".project"
 }
