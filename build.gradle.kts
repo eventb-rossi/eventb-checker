@@ -26,7 +26,7 @@ dependencies {
     implementation("org.json:json:20260522")
 
     testImplementation(kotlin("test"))
-    testImplementation("org.junit.jupiter:junit-jupiter:6.1.0")
+    testImplementation("org.junit.jupiter:junit-jupiter:6.1.1")
     testImplementation("org.assertj:assertj-core:3.27.7")
 }
 
