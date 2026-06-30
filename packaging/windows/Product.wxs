@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Standalone WiX 3 authoring for the eventb-checker Windows MSI.
+
+  WiX 3.14 is the final, stable release; its repo is archived but the toolset is
+  build-time only and its download is pinned + checksummed in release.yml, so the
+  archival is not a concern. WiX 4+ dropped heat harvesting used below.
+
+  jpackage is used only to produce the self-contained app-image (the launcher
+  plus a bundled, jlink-trimmed JRE 21) under dist\app-image\eventb-checker.
+  The installer itself is built with WiX directly. This gives us full control
+  over the install layout and, in particular, lets us append the install
+  directory to the system PATH. jpackage has no built-in "add to PATH" option,
+  and overriding jpackage's internal main.wxs is version-fragile.
+
+  heat.exe harvests the app-image contents into the "AppFiles" ComponentGroup
+  referenced below, rooted at the INSTALLDIR directory defined here. candle/light
+  then compile and link this file together with the generated harvest.wxs.
+  See packaging\windows\package.ps1 for the exact tool invocations.
+
+  Preprocessor variables supplied on the candle command line:
+    ProductVersion   release version, e.g. 1.8
+    Platform         MSI target architecture: x64 (default) or arm64
+    AppDir           app-image source dir (referenced by the harvested harvest.wxs)
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*"
+           Name="eventb-checker"
+           Language="1033"
+           Version="$(var.ProductVersion)"
+           Manufacturer="eventb-rossi"
+           UpgradeCode="8331945C-C2B7-4148-BCD2-3C1C494DCC7E">
+
+    <Package InstallerVersion="500"
+             Compressed="yes"
+             InstallScope="perMachine"
+             Platform="$(var.Platform)"
+             Description="Event-B model checker (self-contained, bundles a JRE)" />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Clean major-upgrade: a newer MSI removes the older install first. -->
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed."
+                  Schedule="afterInstallInitialize" />
+
+    <!-- Add/Remove Programs metadata. -->
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/eventb-rossi/eventb-checker" />
+    <Property Id="ARPNOREPAIR" Value="1" />
+    <!-- Populate the "Installed location" column (INSTALLDIR is resolved at CostFinalize). -->
+    <SetProperty Id="ARPINSTALLLOCATION" Value="[INSTALLDIR]" After="CostFinalize" />
+
+    <!-- Install to C:\Program Files\eventb-checker\ -->
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLDIR" Name="eventb-checker" />
+      </Directory>
+    </Directory>
+
+    <!--
+      Append the install directory (which contains eventb-checker.exe) to the
+      machine PATH so `eventb-checker` works from any console. Part="last" +
+      Action="set" appends; Permanent="no" removes the entry on uninstall. The
+      registry value is the component KeyPath.
+    -->
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="PathEnvironment" Guid="2ACC2030-064A-44C3-80A4-479BEFC200D7" Win64="yes">
+        <CreateFolder />
+        <RegistryValue Root="HKLM"
+                       Key="Software\eventb-rossi\eventb-checker"
+                       Name="InstallDir"
+                       Type="string"
+                       Value="[INSTALLDIR]"
+                       KeyPath="yes" />
+        <Environment Id="UpdatePath"
+                     Name="PATH"
+                     Value="[INSTALLDIR]"
+                     Action="set"
+                     Part="last"
+                     System="yes"
+                     Permanent="no" />
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id="MainFeature" Title="eventb-checker" Level="1">
+      <!-- ComponentGroup "AppFiles" is produced by heat from the app-image. -->
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="PathEnvironment" />
+    </Feature>
+  </Product>
+</Wix>
