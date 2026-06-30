@@ -43,6 +43,20 @@ scoop bucket add eventb https://github.com/eventb-rossi/scoop-eventb
 scoop install eventb/eventb-checker
 ```
 
+### Windows installer / portable ZIP (no Java required)
+
+For Windows machines without a JVM, each [release](https://github.com/eventb-rossi/eventb-checker/releases)
+also ships self-contained artifacts (for `x64` and `arm64`) that bundle their own
+Java runtime:
+
+- **`eventb-checker-<version>-windows-<arch>.msi`** — installer. Adds the install
+  directory to the system `PATH`, so `eventb-checker` works from any new console.
+  Uninstall via *Settings → Apps* (the `PATH` entry is removed too).
+- **`eventb-checker-<version>-windows-<arch>.zip`** — portable. Unzip and run
+  `eventb-checker\eventb-checker.exe` directly; no install step.
+
+(Prefer Scoop above if you already use it — it also keeps the tool on `PATH`.)
+
 ### APT (Ubuntu / Debian)
 
 ```sh

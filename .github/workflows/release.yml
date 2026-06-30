@@ -44,6 +44,117 @@ jobs:
             --notes-file RELEASE_NOTES.md \
             "$jar_file#eventb-checker.jar"
 
+      # Share the platform-independent fat jar so the Windows installer jobs can
+      # reuse it instead of each rebuilding it on a slow Windows runner. Done
+      # after the release is created so a flaky artifact upload can't block the
+      # release itself.
+      - name: Share shadow jar with the Windows installer jobs
+        uses: actions/upload-artifact@v7
+        with:
+          name: shadow-jar
+          path: build/libs/eventb-checker-*-all.jar
+          if-no-files-found: error
+
+  # Build the self-contained Windows artifacts (portable ZIP + MSI installer that
+  # bundle a JRE 21) for each architecture and attach them to the release created
+  # above. Runs on Windows because jpackage and WiX must run on the target platform;
+  # one job per arch because jpackage bundles a JRE matching the runner.
+  windows-installer:
+    needs: [release]
+    strategy:
+      fail-fast: false
+      # Serialize the arches: both legs `gh release upload --clobber` to the same
+      # release, so running them concurrently can race on the asset list.
+      max-parallel: 1
+      matrix:
+        include:
+          - { os: windows-latest, arch: x64 }
+          - { os: windows-11-arm, arch: arm64 }
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      # Reuse the platform-independent shadow jar built by the `release` job
+      # rather than rebuilding it on each (slow) Windows runner.
+      - name: Download shadow jar
+        uses: actions/download-artifact@v8
+        with:
+          name: shadow-jar
+          path: build/libs
+
+      # Pin WiX 3.14 explicitly (jpackage/WiX MSI needs WiX 3 -- WiX 4/5 are
+      # incompatible) so the build does not depend on runner-image drift. The
+      # x86 WiX binaries run under emulation on the arm64 runner.
+      #
+      # The wixtoolset/wix3 repo is archived (read-only since 2025), but this is
+      # a non-issue here: wix314-binaries.zip is the final, stable release and
+      # stays downloadable (archiving a repo does not remove release assets); the
+      # download below is pinned + SHA-256 verified, so it is reproducible and
+      # tamper-checked regardless of the repo status; and WiX runs only at build
+      # time, emitting a standard MSI -- nothing about WiX being maintained ships
+      # to end users. Modern WiX (v4+, now v7) would need a full Product.wxs
+      # rewrite (heat is gone) plus the FireGiant maintenance-fee license, for a
+      # marginal gain over the already-working emulated path.
+      - name: Install WiX Toolset 3.14
+        shell: pwsh
+        run: |
+          $url = "https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip"
+          $sha = "6AC824E1642D6F7277D0ED7EA09411A508F6116BA6FAE0AA5F2C7DAA2FF43D31"
+          $zip = Join-Path $env:RUNNER_TEMP "wix314.zip"
+          $dir = Join-Path $env:RUNNER_TEMP "wix314"
+          for ($i = 1; $i -le 3; $i++) {
+            try { Invoke-WebRequest -Uri $url -OutFile $zip; break }
+            catch { if ($i -eq 3) { throw }; Start-Sleep -Seconds ($i * 5) }
+          }
+          $actual = (Get-FileHash -Path $zip -Algorithm SHA256).Hash
+          if ($actual -ne $sha) { throw "WiX checksum mismatch: expected $sha, got $actual" }
+          Expand-Archive -Path $zip -DestinationPath $dir -Force
+          $dir | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding ascii
+
+      # package.ps1 derives the version from the jar and emits the produced
+      # zip/msi paths as step outputs, so later steps don't re-encode names.
+      - name: Build MSI + portable ZIP
+        id: package
+        shell: pwsh
+        run: .\packaging\windows\package.ps1 -Arch ${{ matrix.arch }}
+
+      - name: Smoke-test portable ZIP (bundled JRE)
+        shell: pwsh
+        run: |
+          Expand-Archive "${{ steps.package.outputs.zip }}" -DestinationPath dist/ziptest -Force
+          $exe = "dist/ziptest/eventb-checker/eventb-checker.exe"
+          & $exe --version
+          if ($LASTEXITCODE -ne 0) { throw "portable launcher failed ($LASTEXITCODE)" }
+          # Run a real model check so the trimmed bundled JRE is exercised on the
+          # actual parser/type-checker paths, not just --version.
+          & $exe check src/test/resources/samples/base-model.zip
+          if ($LASTEXITCODE -ne 0) { throw "model check failed on the bundled runtime ($LASTEXITCODE)" }
+
+      - name: Smoke-test MSI install + system PATH entry
+        shell: pwsh
+        run: |
+          $p = Start-Process msiexec.exe -ArgumentList "/i `"${{ steps.package.outputs.msi }}`" /qn /norestart" -Wait -PassThru
+          if ($p.ExitCode -notin 0, 3010) { throw "msiexec install failed ($($p.ExitCode))" }
+          $exe = "C:\Program Files\eventb-checker\eventb-checker.exe"
+          if (-not (Test-Path $exe)) { throw "installed launcher not found at $exe" }
+          & $exe --version
+          if ($LASTEXITCODE -ne 0) { throw "installed launcher failed ($LASTEXITCODE)" }
+          $sysPath = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment').Path
+          if ($sysPath -notlike '*eventb-checker*') { throw "install dir was not added to the system PATH" }
+          Write-Host "OK: bundled launcher runs and the install dir is on the system PATH"
+
+      - name: Upload installer + ZIP to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: gh release upload "$env:GITHUB_REF_NAME" "${{ steps.package.outputs.msi }}" "${{ steps.package.outputs.zip }}" --clobber
+
   # Tell the eventb-rossi packaging repos a new release exists, so their
   # version-check workflows run immediately instead of waiting for the daily cron.
   # This must be a job in this tag-triggered workflow (not a `release:` listener):

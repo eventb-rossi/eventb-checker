@@ -2,6 +2,9 @@
 build/
 .gradle/
 
+# Packaging output (packaging/windows/package.ps1)
+dist/
+
 # IDE
 .idea/
 *.iml
