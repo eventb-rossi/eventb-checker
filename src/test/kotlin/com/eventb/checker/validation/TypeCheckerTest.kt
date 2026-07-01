@@ -426,12 +426,15 @@ class TypeCheckerTest {
 
         val errors = typeChecker.checkProject(project)
 
+        // A variable declared only in the abstract machine has disappeared in this refinement, so it
+        // is reported precisely as EB025 rather than a generic undeclared identifier (EB018).
         assertThat(errors).anyMatch {
             it.severity == ValidationSeverity.ERROR &&
-                it.ruleId == ValidationRules.UNDECLARED_IDENTIFIER.id &&
+                it.ruleId == ValidationRules.DISAPPEARED_VARIABLE.id &&
                 it.element == "bad/grd1" &&
                 it.message.contains("'x'")
         }
+        assertThat(errors).noneMatch { it.ruleId == ValidationRules.UNDECLARED_IDENTIFIER.id }
     }
 
     @Test
@@ -489,12 +492,14 @@ class TypeCheckerTest {
 
         val errors = typeChecker.checkProject(project)
 
+        // Assigning a variable that disappeared in this refinement is reported as EB025, not EB018.
         assertThat(errors).anyMatch {
             it.severity == ValidationSeverity.ERROR &&
-                it.ruleId == ValidationRules.UNDECLARED_IDENTIFIER.id &&
+                it.ruleId == ValidationRules.DISAPPEARED_VARIABLE.id &&
                 it.element == "bad/act1" &&
                 it.message.contains("'x'")
         }
+        assertThat(errors).noneMatch { it.ruleId == ValidationRules.UNDECLARED_IDENTIFIER.id }
     }
 
     @Test
@@ -655,6 +660,63 @@ class TypeCheckerTest {
                 it.ruleId == ValidationRules.UNDECLARED_IDENTIFIER.id &&
                 it.element == "evt/p" &&
                 it.message.contains("'p'")
+        }
+    }
+
+    @Test
+    fun `retained variable in refinement is not a disappeared variable`() {
+        val project = project(
+            machines = listOf(
+                machine(
+                    "Base",
+                    variables = listOf(Variable("x", "x")),
+                    invariants = listOf(Invariant("inv1", "x ∈ ℤ", false)),
+                ),
+                machine(
+                    "Refined",
+                    refinesMachine = "Base",
+                    variables = listOf(Variable("x", "x")),
+                    invariants = listOf(Invariant("inv1", "x ∈ ℤ", false)),
+                    events = listOf(
+                        event("evt", guards = listOf(Guard("grd1", "x > 0", false))),
+                    ),
+                ),
+            ),
+        )
+
+        val errors = typeChecker.checkProject(project)
+
+        assertThat(errors).noneMatch { it.ruleId == ValidationRules.DISAPPEARED_VARIABLE.id }
+    }
+
+    @Test
+    fun `reading a disappeared variable on an action right-hand side is flagged`() {
+        val project = project(
+            machines = listOf(
+                machine(
+                    "Base",
+                    variables = listOf(Variable("x", "x"), Variable("y", "y")),
+                    invariants = listOf(Invariant("inv1", "x ∈ ℤ ∧ y ∈ ℤ", false)),
+                ),
+                machine(
+                    "Refined",
+                    refinesMachine = "Base",
+                    variables = listOf(Variable("y", "y")),
+                    invariants = listOf(Invariant("inv1", "y ∈ ℤ", false)),
+                    events = listOf(
+                        event("evt", actions = listOf(Action("act1", "y ≔ x"))),
+                    ),
+                ),
+            ),
+        )
+
+        val errors = typeChecker.checkProject(project)
+
+        assertThat(errors).anyMatch {
+            it.severity == ValidationSeverity.ERROR &&
+                it.ruleId == ValidationRules.DISAPPEARED_VARIABLE.id &&
+                it.element == "evt/act1" &&
+                it.message.contains("'x'")
         }
     }
 }

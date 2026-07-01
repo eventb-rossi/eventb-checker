@@ -33,6 +33,9 @@ class TypeChecker(private val ff: FormulaFactory = FormulaFactory.getDefault()) 
         val allVariables: Set<String> = abstractVariables + concreteVariables
         val invariantScope: IdentifierScope = IdentifierScope(contextIdentifiers + allVariables)
         val concreteScope: IdentifierScope = IdentifierScope(contextIdentifiers + concreteVariables)
+
+        /** Abstract variables dropped by this refinement (data-refined away, absent from concrete). */
+        val disappearedVariables: Set<String> = abstractVariables - concreteVariables
     }
 
     private val parsePredicate: (String) -> IParseResult = { ff.parsePredicate(it, null) }
@@ -301,12 +304,16 @@ class TypeChecker(private val ff: FormulaFactory = FormulaFactory.getDefault()) 
             identifiers = machineScope.contextIdentifiers + machineScope.concreteVariables + concreteParameters,
             primedIdentifiers = machineScope.concreteVariables,
         )
-
+        // A guard or action naming a variable this refinement dropped would otherwise be reported as
+        // a generic undeclared identifier (EB018); pass the machine's disappeared-variable set down
+        // so it is flagged precisely as a disappeared variable (EB025) instead. Invariants and
+        // witnesses are excluded because their scopes legitimately include abstract variables.
         for (guard in event.guards) {
             typeCheckFormula(
                 guard.predicate, eventEnv, filePath, "${event.label}/${guard.label}", errors, parsedFormulas, checkedFormulas,
                 FormulaKind.PREDICATE, parsePredicate, extractPredicate,
                 scope = eventScope,
+                disappearedVariables = machineScope.disappearedVariables,
             )
         }
 
@@ -315,6 +322,7 @@ class TypeChecker(private val ff: FormulaFactory = FormulaFactory.getDefault()) 
                 action.assignment, eventEnv, filePath, "${event.label}/${action.label}", errors, parsedFormulas, checkedFormulas,
                 FormulaKind.ASSIGNMENT, parseAssignment, extractAssignment,
                 scope = eventScope,
+                disappearedVariables = machineScope.disappearedVariables,
             )
         }
 
@@ -408,6 +416,7 @@ class TypeChecker(private val ff: FormulaFactory = FormulaFactory.getDefault()) 
         parse: (String) -> IParseResult,
         extract: (IParseResult) -> Formula<*>,
         scope: IdentifierScope,
+        disappearedVariables: Set<String> = emptySet(),
     ) {
         val parseResult = parse(formula)
         if (parseResult.hasProblem()) return
@@ -417,14 +426,23 @@ class TypeChecker(private val ff: FormulaFactory = FormulaFactory.getDefault()) 
         val undeclaredIdentifiers = collectUndeclaredIdentifiers(parsed, kind, scope)
         if (undeclaredIdentifiers.isNotEmpty()) {
             for (identifier in undeclaredIdentifiers) {
+                // An undeclared identifier that names a variable dropped by this refinement is
+                // reported precisely as a disappeared variable (EB025); anything else is a plain
+                // undeclared identifier (EB018).
+                val (message, rule) = if (identifier in disappearedVariables) {
+                    "Disappeared variable: '$identifier' was declared in an abstract machine but not kept in " +
+                        "this refinement; it cannot be referenced here" to ValidationRules.DISAPPEARED_VARIABLE
+                } else {
+                    "Undeclared identifier: '$identifier' is not declared in scope" to ValidationRules.UNDECLARED_IDENTIFIER
+                }
                 errors.add(
                     ValidationError(
                         filePath = filePath,
                         severity = ValidationSeverity.ERROR,
-                        message = "Undeclared identifier: '$identifier' is not declared in scope",
+                        message = message,
                         element = elementLabel,
                         formula = formula,
-                        ruleId = ValidationRules.UNDECLARED_IDENTIFIER.id,
+                        ruleId = rule.id,
                     ),
                 )
             }
