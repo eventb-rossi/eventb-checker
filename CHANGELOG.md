@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.9]
+
+### Added
+
+- New-event and disappeared-variable refinement checks (EB024, EB025). A new event in a refinement — one that refines no abstract event and is not `extended` — implicitly refines `skip`, so it must not modify state inherited and retained from its immediate abstract machine; assigning such a variable is now reported as an error (EB024). A guard or action that references a variable declared in an abstract machine but dropped by this refinement (data-refined away) is reported as EB025, replacing the generic undeclared-identifier error (EB018) that this case produced before.
+- Shadowed-name check (EB023, warning). A declared variable, constant, carrier set, or event parameter whose spelling collides with a reserved Event-B operator or keyword token (e.g. `mod`, `card`, `dom`), and so cannot be used as an identifier, is now flagged. Detection uses the Rodin AST factory's own identifier-validity check rather than a hand-maintained operator list.
+- Assignment-operator-in-predicate check (EB026). An invariant, guard, witness, or axiom written with an assignment operator (`:=`, `:∈`, `:|`) where a predicate is required is now reported with a precise message instead of a generic formula parse error (EB005).
+
 ## [1.8] - 2026-06-25
 
 ### Added
