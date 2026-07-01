@@ -9,16 +9,19 @@ A command-line validator for [Event-B](https://www.event-b.org/) models. It read
 | XML well-formedness | ERROR | Validates `.bum`/`.buc` files are well-formed XML |
 | Camille syntax | ERROR | Parses `.eventb` files using the Camille textual notation grammar |
 | Formula syntax | ERROR | Parses predicates, expressions, and assignments using the Rodin AST library |
+| Assignment in predicate | ERROR | Reports an invariant, guard, witness, or axiom that uses an assignment operator (`:=`, `:∈`, `:|`) where a predicate is required |
 | Undeclared identifiers | ERROR | Reports identifiers not declared in the surrounding context, machine, or event scope |
 | Type checking | ERROR | Reports definite type conflicts (e.g. mismatched operand types) found by the Rodin AST type checker |
 | Unknown types | WARNING | Reports identifiers whose types cannot be inferred (often constructs the checker does not fully model, such as primed witness variables) |
 | Cross-reference integrity | ERROR | Verifies SEES, REFINES, and EXTENDS targets exist in the project |
+| Refinement checks | ERROR | Reports new events that assign a variable inherited from an abstract machine, and guards or actions that reference a variable dropped by the refinement |
 | Well-definedness | INFO | Reports non-trivial well-definedness conditions (e.g., division by zero) |
 | Dead identifiers | WARNING | Detects declared variables/constants never referenced in any formula |
 | Unmodified variables | INFO | Flags variables that are never assigned by any event action |
 | INITIALISATION completeness | WARNING | Checks that INITIALISATION assigns all declared machine variables |
 | Duplicate component definitions | WARNING | Warns when the same machine or context is defined multiple times within the parsed input set |
 | Duplicate identifiers/labels | ERROR | Reports an identifier (variable, constant, carrier set, parameter) or label (invariant, event, guard, action, axiom, witness) declared more than once within the same scope, matching Rodin's static checker |
+| Shadowed names | WARNING | Flags a declared identifier (variable, constant, carrier set, parameter) whose spelling collides with a reserved Event-B operator or keyword token |
 | Proof status | WARNING | Reports undischarged/broken proof obligations from `.bpr`/`.bpo`/`.bps` files (with `--proofs`). The replay status in `.bps` takes precedence over the confidence stored with the `.bpr` proof tree, and broken proofs are counted as pending, matching Rodin |
 
 A model is reported as **VALID** when there are no ERROR-severity findings. Warnings and info findings are reported but do not affect validity.
