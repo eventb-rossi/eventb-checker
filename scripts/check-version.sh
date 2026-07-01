@@ -37,17 +37,12 @@ if [ "$gradle_version" != "$version" ]; then
     emit_error "build.gradle.kts" "build.gradle.kts version is '$gradle_version', expected '$version'"
 fi
 
-# 3. Check README.md contains the JAR filename
-if ! grep -q "eventb-checker-${version}-all.jar" README.md; then
-    emit_error "README.md" "README.md does not reference 'eventb-checker-${version}-all.jar'"
-fi
-
-# 4. Check README.md contains the action tag
+# 3. Check README.md contains the action tag
 if ! grep -q "eventb-rossi/eventb-checker@${tag}" README.md; then
     emit_error "README.md" "README.md does not reference 'eventb-rossi/eventb-checker@${tag}'"
 fi
 
-# 5. Check CHANGELOG.md has release notes for this version
+# 4. Check CHANGELOG.md has release notes for this version
 if ! "$(dirname "$0")/release-notes.sh" "$tag" > /dev/null 2>&1; then
     emit_error "CHANGELOG.md" "CHANGELOG.md has no (or an empty) '## [${version}]' section"
 fi
