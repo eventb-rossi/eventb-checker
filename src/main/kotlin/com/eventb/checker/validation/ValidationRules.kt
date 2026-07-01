@@ -138,6 +138,35 @@ object ValidationRules {
         "A label (invariant, event, guard, action, axiom, or witness) is used more than once within the same scope.",
     )
 
+    val SHADOWED_NAME = RuleDescriptor(
+        "EB023",
+        "Shadowed name",
+        "A declared identifier (variable, constant, carrier set, or event parameter) has a spelling that " +
+            "collides with a reserved Event-B operator or keyword token, so it cannot be used as an identifier.",
+    )
+
+    val NEW_EVENT_ASSIGNS_INHERITED_VARIABLE = RuleDescriptor(
+        "EB024",
+        "New event assigns inherited variable",
+        "A new event (one that does not refine an abstract event and is not extended) assigns a variable that is " +
+            "inherited from an abstract machine and retained in this refinement. A new event refines skip and must " +
+            "not modify inherited state.",
+    )
+
+    val DISAPPEARED_VARIABLE = RuleDescriptor(
+        "EB025",
+        "Disappeared variable",
+        "A guard or action references a variable that was declared in an abstract machine but dropped in this " +
+            "refinement (data-refined away), so it is no longer in scope here.",
+    )
+
+    val ASSIGNMENT_IN_PREDICATE = RuleDescriptor(
+        "EB026",
+        "Assignment operator in predicate",
+        "An invariant, guard, witness, or axiom uses an assignment operator (':=', ':∈', or ':|') where a " +
+            "predicate is required; the intended operator is most likely '=' for equality.",
+    )
+
     val ALL: List<RuleDescriptor> = listOf(
         XML_PARSE_ERROR, UNEXPECTED_XML_ROOT, MISSING_XML_ATTRIBUTE,
         CAMILLE_PARSE_ERROR, FORMULA_PARSE_ERROR,
@@ -148,5 +177,7 @@ object ValidationRules {
         UNDISCHARGED_PROOF, BROKEN_PROOF, PROOF_FILE_PARSE_ERROR,
         UNDECLARED_IDENTIFIER, DUPLICATE_COMPONENT, UNKNOWN_TYPE,
         DUPLICATE_IDENTIFIER, DUPLICATE_LABEL,
+        SHADOWED_NAME, NEW_EVENT_ASSIGNS_INHERITED_VARIABLE,
+        DISAPPEARED_VARIABLE, ASSIGNMENT_IN_PREDICATE,
     )
 }
