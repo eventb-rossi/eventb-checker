@@ -23,6 +23,7 @@ class ProjectValidator(private val checkProofs: Boolean = false) {
     private val eventCompletenessChecker = EventCompletenessChecker()
     private val duplicateNameChecker = DuplicateNameChecker()
     private val shadowedNameChecker = ShadowedNameChecker()
+    private val refinementActionChecker = RefinementActionChecker()
     private val proofStatusChecker = ProofStatusChecker()
 
     fun validate(modelPath: String): ValidationResult {
@@ -52,6 +53,7 @@ class ProjectValidator(private val checkProofs: Boolean = false) {
         allErrors.addAll(eventCompletenessChecker.check(project, typeCheckResult.parsedFormulas))
         allErrors.addAll(duplicateNameChecker.check(project))
         allErrors.addAll(shadowedNameChecker.check(project))
+        allErrors.addAll(refinementActionChecker.check(project))
 
         val crossRefErrors = crossRefValidator.validate(project)
         allErrors.addAll(crossRefErrors)
