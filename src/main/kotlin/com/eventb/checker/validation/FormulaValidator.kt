@@ -51,6 +51,23 @@ class FormulaValidator {
 
         if (!result.hasProblem()) return emptyList()
 
+        // A predicate that fails to parse but is a well-formed assignment is a misplaced
+        // assignment operator (:=, :∈, :|) in an invariant/guard/witness/axiom, where '='
+        // was almost certainly intended. Report that precisely instead of a generic parse error.
+        if (check.kind == FormulaKind.PREDICATE && !parse(check.formula, FormulaKind.ASSIGNMENT).hasProblem()) {
+            return listOf(
+                ValidationError(
+                    filePath = check.filePath,
+                    severity = ValidationSeverity.ERROR,
+                    message = "Assignment operator in predicate: '${check.elementLabel}' uses an assignment " +
+                        "(':=', ':∈', or ':|') where a predicate is required — did you mean '=' for equality?",
+                    element = check.elementLabel,
+                    formula = check.formula,
+                    ruleId = ValidationRules.ASSIGNMENT_IN_PREDICATE.id,
+                ),
+            )
+        }
+
         return result.problems.map { problem ->
             ValidationError(
                 filePath = check.filePath,

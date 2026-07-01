@@ -66,6 +66,31 @@ class FormulaValidatorTest {
         assertThat(errors[0].severity).isEqualTo(ValidationSeverity.ERROR)
     }
 
+    @Test
+    fun `assignment written as a predicate is reported as EB026`() {
+        for (formula in listOf("x ≔ 5", "x :∈ ℕ", "x :∣ x' > 0")) {
+            val errors = validator.validate(formulaCheck(formula, FormulaKind.PREDICATE))
+            assertThat(errors).describedAs("Expected EB026 for: $formula").singleElement()
+                .satisfies({
+                    assertThat(it.ruleId).isEqualTo(ValidationRules.ASSIGNMENT_IN_PREDICATE.id)
+                    assertThat(it.severity).isEqualTo(ValidationSeverity.ERROR)
+                })
+        }
+    }
+
+    @Test
+    fun `malformed predicate that is not an assignment stays EB005`() {
+        val errors = validator.validate(formulaCheck("x ==== y", FormulaKind.PREDICATE))
+        assertThat(errors).singleElement()
+            .satisfies({ assertThat(it.ruleId).isEqualTo(ValidationRules.FORMULA_PARSE_ERROR.id) })
+    }
+
+    @Test
+    fun `valid predicate is not misreported as an assignment`() {
+        val errors = validator.validate(formulaCheck("x = 5", FormulaKind.PREDICATE))
+        assertThat(errors).isEmpty()
+    }
+
     private fun formulaCheck(formula: String, kind: FormulaKind) = FormulaValidator.FormulaCheck(
         filePath = "test.bum",
         elementLabel = "test",
