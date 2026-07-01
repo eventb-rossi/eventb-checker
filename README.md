@@ -26,43 +26,20 @@ A command-line validator for [Event-B](https://www.event-b.org/) models. It read
 
 A model is reported as **VALID** when there are no ERROR-severity findings. Warnings and info findings are reported but do not affect validity.
 
-## Requirements
-
-- Java 21+
-
 ## Installation
 
-### Homebrew (macOS)
+Install the `eventb-checker` command from a package manager (these need a Java 21+ runtime):
 
 ```sh
+# Homebrew (macOS)
 brew tap eventb-rossi/tap
 brew install eventb-checker
-```
 
-### Scoop (Windows)
-
-```powershell
+# Scoop (Windows)
 scoop bucket add eventb https://github.com/eventb-rossi/scoop-eventb
 scoop install eventb/eventb-checker
-```
 
-### Windows installer / portable ZIP (no Java required)
-
-For Windows machines without a JVM, each [release](https://github.com/eventb-rossi/eventb-checker/releases)
-also ships self-contained artifacts (for `x64` and `arm64`) that bundle their own
-Java runtime:
-
-- **`eventb-checker-<version>-windows-<arch>.msi`** — installer. Adds the install
-  directory to the system `PATH`, so `eventb-checker` works from any new console.
-  Uninstall via *Settings → Apps* (the `PATH` entry is removed too).
-- **`eventb-checker-<version>-windows-<arch>.zip`** — portable. Unzip and run
-  `eventb-checker\eventb-checker.exe` directly; no install step.
-
-(Prefer Scoop above if you already use it — it also keeps the tool on `PATH`.)
-
-### APT (Ubuntu / Debian)
-
-```sh
+# APT (Ubuntu / Debian)
 curl -fsSL https://eventb-rossi.github.io/apt/KEY.gpg \
   | sudo gpg --dearmor -o /etc/apt/keyrings/eventb.gpg
 . /etc/os-release
@@ -70,28 +47,18 @@ echo "deb [signed-by=/etc/apt/keyrings/eventb.gpg] https://eventb-rossi.github.i
   | sudo tee /etc/apt/sources.list.d/eventb.list
 sudo apt update
 sudo apt install eventb-checker
-```
 
-### Copr (Fedora / RHEL)
-
-```sh
+# Copr (Fedora / RHEL)
 sudo dnf copr enable @eventb-rossi/eventb-copr
 sudo dnf install eventb-checker
-```
 
-### Gentoo
-
-```sh
+# Gentoo
 eselect repository enable eventb-rossi
 emaint sync -r eventb-rossi
 emerge sci-mathematics/eventb-checker
 ```
 
-## Build from Source
-
-```bash
-./gradlew build
-```
+For Windows machines without a JVM, each [release](https://github.com/eventb-rossi/eventb-checker/releases) also ships self-contained `x64`/`arm64` artifacts that bundle their own Java runtime: the `.msi` installer adds `eventb-checker` to the system `PATH`, and the `.zip` is portable (unzip and run `eventb-checker\eventb-checker.exe`).
 
 ## Usage
 
@@ -103,17 +70,9 @@ The checker exposes two subcommands, both accepting either a `.zip` archive or a
 | `info` | Report read-only facts about a model (currently inferred identifier types) |
 
 ```bash
-./gradlew run --args="check /path/to/model.zip"
-./gradlew run --args="check /path/to/model-directory"
-./gradlew run --args="info /path/to/model.zip --types --format json"
-```
-
-Or build a fat JAR and run it directly:
-
-```bash
-./gradlew shadowJar
-java -jar build/libs/eventb-checker-1.8-all.jar check /path/to/model.zip
-java -jar build/libs/eventb-checker-1.8-all.jar info /path/to/model.zip --types --format json
+eventb-checker check /path/to/model.zip
+eventb-checker check /path/to/model-directory
+eventb-checker info /path/to/model.zip --types --format json
 ```
 
 When a project contains any Rodin XML files (`.bum` or `.buc`), the checker parses only those XML inputs and ignores `.eventb` files. Camille parsing is used only for projects that do not contain XML model files.
@@ -294,46 +253,6 @@ If `EVENTB_MODEL_GLOB` matches no files, the job fails as a configuration error 
 | `EVENTB_PROOFS` | no | `"false"` | Check proof status from `.bpr`/`.bpo`/`.bps` files |
 | `EVENTB_CHECKER_REPO` | no | `"eventb-rossi/eventb-checker"` | GitHub repo for JAR download |
 
-### Build from Source
-
-To build the checker from source instead of downloading a release JAR:
-
-```yaml
-include:
-  - remote: 'https://raw.githubusercontent.com/eventb-rossi/eventb-checker/main/.gitlab/ci/eventb-checker.yml'
-
-eventb-validate:
-  extends: .eventb-validate-src
-  variables:
-    EVENTB_MODEL_GLOB: "models/*.zip"
-```
-
-### Custom Job Override
-
-Override the concrete job to add your own configuration:
-
-```yaml
-include:
-  - remote: 'https://raw.githubusercontent.com/eventb-rossi/eventb-checker/main/.gitlab/ci/eventb-checker.yml'
-
-eventb-validate:
-  extends: .eventb-validate-jar
-  variables:
-    EVENTB_MODEL_GLOB: "models/*.zip"
-    EVENTB_SHOW_INFO: "true"
-  only:
-    - merge_requests
-    - main
-```
-
-## Dependencies
-
-- [rodin-eventb-ast](https://github.com/hhu-stups/probparsers) — Standalone Rodin AST library for formula parsing and type checking
-- [eventbstruct](https://github.com/hhu-stups/probparsers) — Parser for Camille textual notation (`.eventb` files)
-- [Clikt](https://ajalt.github.io/clikt/) — Command-line argument parsing
-- [JSON-java](https://github.com/stleary/JSON-java) — JSON output formatting
-- [JUnit 5](https://junit.org/junit5/) + [AssertJ](https://assertj.github.io/doc/) — Testing
-
 ## Development
 
 ### Git Hooks Setup
@@ -350,10 +269,3 @@ The repository includes pre-commit and pre-push hooks in `.githooks/`. To enable
 **Pre-push** — When pushing a `v*` tag, validates that the tag format is `vMAJOR.MINOR` and that `build.gradle.kts` and `README.md` reference the matching version. This catches version inconsistencies before they reach CI.
 
 To bypass hooks for a specific operation, use `--no-verify`.
-
-## Acknowledgements
-
-The test suite includes real-world Event-B models from the following repositories:
-
-- [base-model](https://github.com/17451k/base-model) — A base Event-B model
-- [eventb-models](https://github.com/17451k/eventb-models) — A collection of Event-B models
