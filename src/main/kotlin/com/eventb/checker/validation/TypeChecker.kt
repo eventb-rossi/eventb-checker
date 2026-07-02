@@ -388,9 +388,6 @@ class TypeChecker(private val ff: FormulaFactory = FormulaFactory.getDefault()) 
         return parameterNames
     }
 
-    private fun refinedEventLabels(event: Event): List<String> =
-        event.refinesEvents.ifEmpty { if (event.extended) listOf(event.label) else emptyList() }
-
     private fun validWitnessTarget(label: String, abstractParameters: Set<String>, abstractVariables: Set<String>): Set<String> {
         if (label in abstractParameters) {
             return setOf(label)

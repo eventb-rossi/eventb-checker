@@ -4,11 +4,7 @@ import com.eventb.checker.model.EventBProject
 
 class EventCompletenessChecker {
 
-    companion object {
-        private const val INITIALISATION = "INITIALISATION"
-    }
-
-    fun check(project: EventBProject, parsedFormulas: List<ParsedFormula>): List<ValidationError> {
+    fun check(project: EventBProject, inheritance: Map<String, MachineInheritance>): List<ValidationError> {
         val findings = mutableListOf<ValidationError>()
 
         for (machine in project.machines) {
@@ -16,13 +12,11 @@ class EventCompletenessChecker {
 
             val initEvent = machine.events.find { it.label == INITIALISATION } ?: continue
 
-            val machineInitFormulas = parsedFormulas.filter {
-                it.filePath == machine.filePath &&
-                    it.kind == FormulaKind.ASSIGNMENT &&
-                    it.elementLabel.startsWith("$INITIALISATION/")
-            }
-
-            val assignedIdentifiers = machineInitFormulas.extractAssignedIdentifiers()
+            // The materialized set is null when an extended INITIALISATION's inherited chain
+            // cannot be resolved (missing parent, cycle, ancestor without an INITIALISATION,
+            // unparseable inherited action); those defects are reported elsewhere
+            // (EB005/EB008/EB009), so completeness is not judged here.
+            val assignedIdentifiers = inheritance.getValue(machine.name).initAssignedIdentifiers ?: continue
 
             for (variable in machine.variables) {
                 if (variable.identifier !in assignedIdentifiers) {

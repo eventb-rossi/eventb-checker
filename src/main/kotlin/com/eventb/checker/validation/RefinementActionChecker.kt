@@ -58,12 +58,9 @@ class RefinementActionChecker(private val ff: FormulaFactory = FormulaFactory.ge
      * than looking it up by "event/action" label) keeps the result unambiguous even when a model
      * has duplicate event or action labels (themselves reported as EB021/EB022).
      */
-    private fun assignedVariables(assignment: String): List<String> {
-        val result = ff.parseAssignment(assignment, null)
-        if (result.hasProblem()) return emptyList()
-        return result.parsedAssignment?.assignedIdentifiers?.map { it.name }?.sorted() ?: emptyList()
-    }
+    private fun assignedVariables(assignment: String): List<String> =
+        ff.parseAssignmentOrNull(assignment)?.assignedIdentifiers?.map { it.name }?.sorted() ?: emptyList()
 
-    /** A new event refines skip: it refines no abstract event, is not extended, and is not INITIALISATION. */
-    private fun Event.isNewEvent(): Boolean = label != "INITIALISATION" && refinesEvents.isEmpty() && !extended
+    /** A new event refines skip: it refines no abstract event (explicitly or implicitly) and is not INITIALISATION. */
+    private fun Event.isNewEvent(): Boolean = label != INITIALISATION && refinedEventLabels(this).isEmpty()
 }
