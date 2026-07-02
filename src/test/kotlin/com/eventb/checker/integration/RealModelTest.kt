@@ -46,6 +46,15 @@ class RealModelTest {
         assertThat(result.summary.machineCount).isEqualTo(machineCount)
         assertThat(result.summary.contextCount).isEqualTo(contextCount)
         assertThat(result.summary.formulaCount).isGreaterThan(0)
+
+        // isValid only counts ERRORs. The samples are also proof-complete Rodin models built on
+        // the `extends` idiom: every variable is referenced and initialised once inherited clauses
+        // are materialized, so any EB011/EB012/EB014 finding on them is a false positive from
+        // judging the literal file instead of the machine Rodin builds (34 of them before
+        // MachineInheritanceResolver existed).
+        assertThat(result.errors)
+            .describedAs("EB011/EB012/EB014 must not fire on the materialized samples")
+            .noneMatch { it.ruleId in setOf("EB011", "EB012", "EB014") }
     }
 
     @Test
