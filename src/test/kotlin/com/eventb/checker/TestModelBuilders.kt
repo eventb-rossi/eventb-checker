@@ -15,6 +15,8 @@ import com.eventb.checker.model.Parameter
 import com.eventb.checker.model.Variable
 import com.eventb.checker.model.Variant
 import com.eventb.checker.model.Witness
+import com.eventb.checker.validation.MachineInheritance
+import com.eventb.checker.validation.MachineInheritanceResolver
 import com.eventb.checker.validation.ParsedFormula
 import com.eventb.checker.validation.TypeCheckedFormula
 import com.eventb.checker.validation.TypeChecker
@@ -62,6 +64,8 @@ object TestModelBuilders {
     )
 
     fun parsedFormulas(project: EventBProject): List<ParsedFormula> = TypeChecker().checkProjectFull(project).parsedFormulas
+
+    fun inheritance(project: EventBProject): Map<String, MachineInheritance> = MachineInheritanceResolver().resolve(project)
 
     fun checkedFormulas(project: EventBProject): List<TypeCheckedFormula> = TypeChecker().checkProjectFull(project).checkedFormulas
 

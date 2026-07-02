@@ -4,14 +4,19 @@ import com.eventb.checker.model.EventBProject
 
 class IdentifierAnalyzer {
 
-    fun analyze(project: EventBProject, parsedFormulas: List<ParsedFormula>): List<ValidationError> {
+    fun analyze(
+        project: EventBProject,
+        parsedFormulas: List<ParsedFormula>,
+        inheritance: Map<String, MachineInheritance>,
+    ): List<ValidationError> {
         val findings = mutableListOf<ValidationError>()
         val formulasByFile = parsedFormulas.groupBy { it.filePath }
 
         for (machine in project.machines) {
             val machineFormulas = formulasByFile[machine.filePath].orEmpty()
-            val referencedIdentifiers = machineFormulas.referencedIdentifierNames()
-            val assignedIdentifiers = machineFormulas.extractAssignedIdentifiers()
+            val inherited = inheritance.getValue(machine.name)
+            val referencedIdentifiers = machineFormulas.referencedIdentifierNames() + inherited.inheritedReferences
+            val assignedIdentifiers = machineFormulas.extractAssignedIdentifiers() + inherited.inheritedAssignments
 
             for (variable in machine.variables) {
                 if (variable.identifier !in referencedIdentifiers) {
