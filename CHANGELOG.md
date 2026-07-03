@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.10] - 2026-07-04
+
+### Fixed
+
+- EB011 (dead variable), EB012 (unmodified variable), and EB014 (incomplete INITIALISATION) no longer judge a machine by its literal file alone: clauses that Event-B materializes into the machine are now counted. An event marked `extended` inherits its abstract event's parameters, guards, and actions (transitively while every link in the REFINES chain stays extended), an extended INITIALISATION inherits the abstract initialisation's actions, and ancestor invariants are inherited unconditionally — so a variable that is referenced or assigned only through such inherited clauses is no longer flagged. On the bundled sample models this removes 34 false positives (EB011/EB012/EB014 across traffic-light, binary-search, and cars-on-bridge). Inherited event parameters are subtracted, so they do not leak in as machine-level references. When an extended INITIALISATION's chain cannot be resolved (missing abstract machine, REFINES cycle, ancestor without an INITIALISATION), EB014 stays silent for that machine rather than guessing; the underlying breakage is already reported by the cross-reference checks (EB008/EB009).
+
 ## [1.9] - 2026-07-02
 
 ### Added
