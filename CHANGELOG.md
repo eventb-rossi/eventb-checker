@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased]
+
+Reworks the semantics of several "validate" warning and error codes.
+
+### Changed
+
+- EB011 (dead variable) and EB012 (unmodified variable) repartitioned so each variable draws at most one, chosen so that acting on the finding yields a correct model. A typing-shaped invariant conjunct (`v ∈ E` / `v ⊆ E` whose bound mentions no machine variable) no longer counts as a use — every variable needs one just to be typed — and an assignment's left-hand side no longer counts as a reference. **EB011** now fires when nothing references a variable outside typing invariants *and* no event assigns it; a write-only variable (assigned but never read) is exempt as an output. As a result a variable that is only initialised and never otherwise used is now reported (previously it was silent). **EB012** now fires when a variable is assigned by INITIALISATION, never modified by any event, and referenced — a constant in disguise — and its severity is raised from INFO to WARNING, so it shows without `--show-info`. A variable that is referenced but never assigned at all is no longer reported by EB012 (its missing initialisation is EB014's concern).
+- EB019 (duplicate component definition) raised from WARNING to ERROR: a model that defines the same machine or context more than once is now invalid. The checker still keeps one definition and continues checking the rest.
+
+### Removed
+
+- EB013 (dead constant) removed. A constant that no axiom types is untyped, which is now reported as a type error (EB006), matching Rodin's `UntypedIdentifierError`; a separate dead-constant warning added nothing.
+
 ## [1.10] - 2026-07-04
 
 ### Fixed
