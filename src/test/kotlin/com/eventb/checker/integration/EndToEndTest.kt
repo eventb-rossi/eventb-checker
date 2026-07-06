@@ -380,10 +380,12 @@ class EndToEndTest {
 
         val result = validator.validate(projectDir.absolutePath)
 
-        assertThat(result.isValid).isTrue()
+        // A duplicate component definition is an error (EB019), so the model is invalid; the checker
+        // still resolves the duplicate and keeps one component so the rest of the model is checked.
+        assertThat(result.isValid).isFalse()
         assertThat(result.summary.machineCount).isEqualTo(1)
         assertThat(result.errors).anyMatch {
-            it.severity == ValidationSeverity.WARNING &&
+            it.severity == ValidationSeverity.ERROR &&
                 it.ruleId == ValidationRules.DUPLICATE_COMPONENT.id &&
                 it.filePath.endsWith("B.eventb")
         }

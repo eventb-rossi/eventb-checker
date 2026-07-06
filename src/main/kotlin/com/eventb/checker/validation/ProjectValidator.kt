@@ -189,7 +189,7 @@ class ProjectValidator(private val checkProofs: Boolean = false) {
             errors.add(
                 ValidationError(
                     filePath = path,
-                    severity = ValidationSeverity.WARNING,
+                    severity = ValidationSeverity.ERROR,
                     message = "Ignoring duplicate $kind '$name' from $path; using $selectedPath",
                     element = name,
                     ruleId = ValidationRules.DUPLICATE_COMPONENT.id,
