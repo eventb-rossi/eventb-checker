@@ -168,12 +168,39 @@ class TypeChecker(private val ff: FormulaFactory = FormulaFactory.getDefault()) 
             declaredIdentifiers.add(constant.identifier)
         }
 
+        val axiomFormulaStart = parsedFormulas.size
         for (axiom in ctx.axioms) {
             typeCheckFormula(
                 axiom.predicate, env, ctx.filePath, axiom.label, errors, parsedFormulas, checkedFormulas,
                 FormulaKind.PREDICATE, parsePredicate, extractPredicate,
                 scope = IdentifierScope(declaredIdentifiers),
             )
+        }
+
+        // A constant that no axiom even mentions cannot be given a type — Rodin drops it with an
+        // UntypedIdentifierError. We gate on "referenced by no axiom" rather than the inferred type
+        // environment: `env` is built by a single forward pass that only records a type on a fully
+        // successful axiom, so a constant whose typing axiom depends on a not-yet-processed one (e.g.
+        // `c = d` before `d ∈ ℤ`) would look untyped and flip a valid model to invalid. Carrier sets,
+        // typed eagerly by addGivenSet above, are never in ctx.constants; inherited constants are the
+        // declaring context's to check, not this one's. References come from the axioms this loop just
+        // parsed into parsedFormulas, so no axiom is parsed twice.
+        val axiomReferences = parsedFormulas
+            .drop(axiomFormulaStart)
+            .flatMapTo(mutableSetOf()) { record -> record.formula.freeIdentifiers.map { it.name } }
+        for (constant in ctx.constants) {
+            if (constant.identifier !in axiomReferences) {
+                errors.add(
+                    ValidationError(
+                        filePath = ctx.filePath,
+                        severity = ValidationSeverity.ERROR,
+                        message = "Type error: constant '${constant.identifier}' is not referenced by any axiom, " +
+                            "so it cannot be given a type",
+                        element = constant.label,
+                        ruleId = ValidationRules.TYPE_ERROR.id,
+                    ),
+                )
+            }
         }
 
         contextEnvs[ctx.name] = env

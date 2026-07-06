@@ -37,7 +37,8 @@ object ValidationRules {
     val TYPE_ERROR = RuleDescriptor(
         "EB006",
         "Type error",
-        "A formula has a definite type conflict (e.g. mismatched operand types) against the inferred type environment.",
+        "A formula has a definite type conflict (e.g. mismatched operand types) against the inferred type " +
+            "environment, or a declared constant is never given a type by any axiom.",
     )
 
     val CIRCULAR_EXTENDS = RuleDescriptor(
@@ -77,12 +78,6 @@ object ValidationRules {
         "Unmodified variable",
         "A machine variable that INITIALISATION assigns but no event ever modifies, yet is referenced — " +
             "a constant in disguise. Consider declaring it a CONSTANT with the initial value as an axiom.",
-    )
-
-    val DEAD_CONSTANT = RuleDescriptor(
-        "EB013",
-        "Dead constant",
-        "A context constant is declared but never referenced in any axiom formula.",
     )
 
     val INCOMPLETE_INITIALISATION = RuleDescriptor(
@@ -175,7 +170,7 @@ object ValidationRules {
         CAMILLE_PARSE_ERROR, FORMULA_PARSE_ERROR,
         TYPE_ERROR, CIRCULAR_EXTENDS, CIRCULAR_REFINES,
         CROSS_REFERENCE_NOT_FOUND, WELL_DEFINEDNESS,
-        DEAD_VARIABLE, UNMODIFIED_VARIABLE, DEAD_CONSTANT,
+        DEAD_VARIABLE, UNMODIFIED_VARIABLE,
         INCOMPLETE_INITIALISATION,
         UNDISCHARGED_PROOF, BROKEN_PROOF, PROOF_FILE_PARSE_ERROR,
         UNDECLARED_IDENTIFIER, DUPLICATE_COMPONENT, UNKNOWN_TYPE,
