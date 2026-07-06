@@ -7,6 +7,7 @@ import com.eventb.checker.model.Action
 import com.eventb.checker.model.Guard
 import com.eventb.checker.model.Invariant
 import com.eventb.checker.model.Parameter
+import com.eventb.checker.model.Variable
 import com.eventb.checker.model.Witness
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
@@ -312,5 +313,101 @@ class MachineInheritanceResolverTest {
 
         assertThat(inheritance.getValue("M1").initAssignedIdentifiers).isNull()
         assertThat(inheritance.getValue("M2").initAssignedIdentifiers).isNull()
+    }
+
+    @Test
+    fun `inherited variable names are the ancestors' declared variables`() {
+        val project = project(
+            machines = listOf(
+                machine("M0", variables = listOf(Variable("a", "a"))),
+                machine("M1", refinesMachine = "M0", variables = listOf(Variable("a", "a"), Variable("b", "b"))),
+                machine(
+                    "M2",
+                    refinesMachine = "M1",
+                    variables = listOf(Variable("a", "a"), Variable("b", "b"), Variable("c", "c")),
+                ),
+            ),
+        )
+
+        val inheritance = resolver.resolve(project)
+
+        assertThat(inheritance.getValue("M0").inheritedVariableNames).isEmpty()
+        assertThat(inheritance.getValue("M1").inheritedVariableNames).containsExactly("a")
+        assertThat(inheritance.getValue("M2").inheritedVariableNames).containsExactlyInAnyOrder("a", "b")
+    }
+
+    @Test
+    fun `chain references and assignments fold in own usage and every descendant's`() {
+        val project = project(
+            machines = listOf(
+                machine(
+                    "M0",
+                    variables = listOf(Variable("v", "v")),
+                    events = listOf(event("INITIALISATION", actions = listOf(Action("act1", "v ≔ 0")))),
+                ),
+                machine(
+                    "M1",
+                    refinesMachine = "M0",
+                    variables = listOf(Variable("v", "v")),
+                    events = listOf(
+                        event("INITIALISATION", extended = true),
+                        event("use", guards = listOf(guard("v > 5"))),
+                        event("mod", actions = listOf(Action("act1", "v ≔ v + 1"))),
+                    ),
+                ),
+                machine(
+                    "M2",
+                    refinesMachine = "M1",
+                    variables = listOf(Variable("v", "v")),
+                    events = listOf(event("deep", guards = listOf(guard("w > 0")))),
+                ),
+            ),
+        )
+
+        val inheritance = resolver.resolve(project)
+
+        // Own usage of every transitive descendant surfaces at the declarer (w via M2, v via M1).
+        assertThat(inheritance.getValue("M0").chainReferences).contains("v", "w")
+        assertThat(inheritance.getValue("M0").chainEventAssignments).contains("v")
+        // A leaf machine has no descendants, so its chain sets are just its own usage.
+        assertThat(inheritance.getValue("M2").chainReferences).containsExactly("w")
+        assertThat(inheritance.getValue("M2").chainEventAssignments).isEmpty()
+    }
+
+    @Test
+    fun `an unrelated machine does not contribute to the chain references`() {
+        val project = project(
+            machines = listOf(
+                machine("M0", variables = listOf(Variable("v", "v"))),
+                machine("Other", events = listOf(event("op", guards = listOf(guard("z > 0"))))),
+            ),
+        )
+
+        assertThat(resolver.resolve(project).getValue("M0").chainReferences).doesNotContain("z")
+    }
+
+    @Test
+    fun `refines cycle terminates the descendant walk`() {
+        val project = project(
+            machines = listOf(
+                machine(
+                    "M1",
+                    refinesMachine = "M2",
+                    variables = listOf(Variable("v", "v")),
+                    events = listOf(event("op", guards = listOf(guard("g1 > 0")))),
+                ),
+                machine(
+                    "M2",
+                    refinesMachine = "M1",
+                    variables = listOf(Variable("v", "v")),
+                    events = listOf(event("op", guards = listOf(guard("g2 > 0")))),
+                ),
+            ),
+        )
+
+        val inheritance = resolver.resolve(project)
+
+        assertThat(inheritance.getValue("M1").chainReferences).contains("g2")
+        assertThat(inheritance.getValue("M2").chainReferences).contains("g1")
     }
 }

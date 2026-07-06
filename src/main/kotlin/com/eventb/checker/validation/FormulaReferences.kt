@@ -18,6 +18,9 @@ import org.eventb.core.ast.RelationalPredicate
  * `collect_referenced_in_action_rhs` so the two tools classify a variable the same way.
  */
 
+/** A machine's own-text references and the variables its own **non-INITIALISATION** events assign. */
+internal data class MachineUsage(val references: Set<String>, val eventAssigned: Set<String>)
+
 /** The names [this] predicate references (its free identifiers; quantifier binders excluded by Rodin). */
 fun Predicate.referenceNames(): Set<String> = freeIdentifiers.mapTo(mutableSetOf()) { it.name }
 
@@ -88,4 +91,44 @@ fun Machine.invariantReferenceNames(ff: FormulaFactory): Set<String> {
         )
     }
     return references
+}
+
+/**
+ * The names [this] machine's own clauses reference and the variables its own **non-INITIALISATION**
+ * events assign, computed in a single parse of each formula. References come from invariants (typing
+ * conjuncts excluded, theorems in full), the variant, and every event's guards, witnesses, and action
+ * right-hand sides — minus that event's parameters, which are local; INITIALISATION action right-hand
+ * sides count. Event-assignments exclude INITIALISATION: giving a variable its initial value is not
+ * modifying it, which is what lets EB012 recognise a constant-in-disguise while EB011 still treats an
+ * initialised-but-unused variable as dead.
+ *
+ * Shared by the EB011/EB012 lints ([IdentifierAnalyzer], for the machine being judged) and the
+ * inheritance resolver (for each refinement descendant, to union usage downward), mirroring rossi's
+ * per-machine `mach_refs` / `mach_event_assigned`.
+ */
+internal fun Machine.ownUsage(ff: FormulaFactory): MachineUsage {
+    val references = invariantReferenceNames(ff).toMutableSet()
+    val eventAssigned = mutableSetOf<String>()
+
+    variant?.let { ff.parseExpressionOrNull(it.expression) }
+        ?.freeIdentifiers?.mapTo(references) { it.name }
+
+    for (event in events) {
+        val params = event.parameters.mapTo(mutableSetOf()) { it.identifier }
+        val isInit = event.label == INITIALISATION
+        val eventRefs = mutableSetOf<String>()
+        for (guard in event.guards) {
+            ff.parsePredicateOrNull(guard.predicate)?.let { eventRefs.addAll(it.referenceNames()) }
+        }
+        for (witness in event.witnesses) {
+            ff.parsePredicateOrNull(witness.predicate)?.let { eventRefs.addAll(it.referenceNames()) }
+        }
+        for (action in event.actions) {
+            val parsed = ff.parseAssignmentOrNull(action.assignment) ?: continue
+            eventRefs.addAll(parsed.rhsReferenceNames())
+            if (!isInit) eventAssigned.addAll(parsed.assignedNames())
+        }
+        references.addAll(eventRefs - params)
+    }
+    return MachineUsage(references, eventAssigned)
 }

@@ -3,7 +3,6 @@ package com.eventb.checker.validation
 import com.eventb.checker.model.EventBProject
 import com.eventb.checker.model.Machine
 import com.eventb.checker.model.Variable
-import org.eventb.core.ast.FormulaFactory
 
 /**
  * The variable-usage lints EB011 (dead variable) and EB012 (unmodified variable). Each machine
@@ -18,11 +17,18 @@ import org.eventb.core.ast.FormulaFactory
  *   CONSTANT.
  *
  * References, event-assignments, and INITIALISATION writes are read from the machine as Event-B
- * materializes it: [MachineInheritance] supplies the clauses inherited from `extended` events and
- * ancestor invariants. An assignment's right-hand side counts as a reference; its left-hand side does
- * not. Typing-shaped invariant conjuncts do not count (every variable needs one just to be typed).
+ * materializes it, and are unioned across the **whole refinement chain**: [MachineInheritance] supplies
+ * the clauses inherited from `extended` events and ancestor invariants (upward) *and* the own-text
+ * usage of every REFINES descendant (downward). An assignment's right-hand side counts as a reference;
+ * its left-hand side does not. Typing-shaped invariant conjuncts do not count (every variable needs one
+ * just to be typed).
+ *
+ * Each variable is judged exactly **once, at the machine that declares it** — a variable a refinement
+ * re-lists (inherited from an ancestor) is filtered out here and judged at that ancestor, so a variable
+ * declared/typed in an abstract machine but used or modified only in a refinement is not falsely
+ * flagged, and a variable retained through a chain is reported once rather than at every level.
  */
-class IdentifierAnalyzer(private val ff: FormulaFactory = FormulaFactory.getDefault()) {
+class IdentifierAnalyzer {
 
     fun analyze(project: EventBProject, inheritance: Map<String, MachineInheritance>): List<ValidationError> {
         val findings = mutableListOf<ValidationError>()
@@ -35,12 +41,17 @@ class IdentifierAnalyzer(private val ff: FormulaFactory = FormulaFactory.getDefa
             // error (EB008/EB009); stay silent on the advisory lints here.
             val initAssigned = inherited.initAssignedIdentifiers ?: continue
 
-            val usage = ownUsage(machine)
-            val references = usage.references + inherited.inheritedReferences
-            val eventAssigned = usage.eventAssigned + inherited.inheritedEventAssignments
+            // A variable declared here is judged against every clause that could reference or assign it
+            // across the refinement chain: this machine and its descendants (chain*, own usage already
+            // folded in by the resolver) plus what ancestors materialize into it (inherited*).
+            val references = inherited.chainReferences + inherited.inheritedReferences
+            val eventAssigned = inherited.chainEventAssignments + inherited.inheritedEventAssignments
 
             for (variable in machine.variables) {
                 val id = variable.identifier
+                // A variable declared by an ancestor is judged at that (more abstract) declaring
+                // machine, where the whole chain's references and assignments are unioned — not here.
+                if (id in inherited.inheritedVariableNames) continue
                 when {
                     id !in references && id !in eventAssigned ->
                         findings.add(deadVariable(machine, variable))
@@ -52,44 +63,6 @@ class IdentifierAnalyzer(private val ff: FormulaFactory = FormulaFactory.getDefa
         }
 
         return findings
-    }
-
-    private data class MachineUsage(val references: Set<String>, val eventAssigned: Set<String>)
-
-    /**
-     * The names [machine]'s own clauses reference and the variables its own **non-INITIALISATION**
-     * events assign, computed in a single parse of each formula. References come from invariants
-     * (typing conjuncts excluded, theorems in full), the variant, and every event's guards, witnesses,
-     * and action right-hand sides — minus that event's parameters, which are local; INITIALISATION
-     * action right-hand sides count. Event-assignments exclude INITIALISATION: giving a variable its
-     * initial value is not modifying it, which is what lets EB012 recognise a constant-in-disguise
-     * while EB011 still treats an initialised-but-unused variable as dead.
-     */
-    private fun ownUsage(machine: Machine): MachineUsage {
-        val references = machine.invariantReferenceNames(ff).toMutableSet()
-        val eventAssigned = mutableSetOf<String>()
-
-        machine.variant?.let { ff.parseExpressionOrNull(it.expression) }
-            ?.freeIdentifiers?.mapTo(references) { it.name }
-
-        for (event in machine.events) {
-            val params = event.parameters.mapTo(mutableSetOf()) { it.identifier }
-            val isInit = event.label == INITIALISATION
-            val eventRefs = mutableSetOf<String>()
-            for (guard in event.guards) {
-                ff.parsePredicateOrNull(guard.predicate)?.let { eventRefs.addAll(it.referenceNames()) }
-            }
-            for (witness in event.witnesses) {
-                ff.parsePredicateOrNull(witness.predicate)?.let { eventRefs.addAll(it.referenceNames()) }
-            }
-            for (action in event.actions) {
-                val parsed = ff.parseAssignmentOrNull(action.assignment) ?: continue
-                eventRefs.addAll(parsed.rhsReferenceNames())
-                if (!isInit) eventAssigned.addAll(parsed.assignedNames())
-            }
-            references.addAll(eventRefs - params)
-        }
-        return MachineUsage(references, eventAssigned)
     }
 
     private fun deadVariable(machine: Machine, variable: Variable) = ValidationError(

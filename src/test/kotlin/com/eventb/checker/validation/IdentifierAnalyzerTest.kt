@@ -288,7 +288,10 @@ class IdentifierAnalyzerTest {
     }
 
     @Test
-    fun `plain refines event does not inherit clauses`() {
+    fun `variable used at the abstract level is not flagged in a plain refinement`() {
+        // v is declared and used (op's guard) in M0. M1 refines M0, re-declares v, and its plain
+        // (non-extended) refinement of op rewrites the guard so it no longer mentions v. v is judged
+        // once, at its declaring machine M0, where it is alive — it is not re-judged (nor flagged) in M1.
         val project = project(
             machines = listOf(
                 machine(
@@ -308,13 +311,14 @@ class IdentifierAnalyzerTest {
             ),
         )
 
-        assertThat(analyze(project).dead())
-            .filteredOn { it.filePath == "M1.bum" }
-            .singleElement()
+        assertThat(analyze(project).dead()).isEmpty()
     }
 
     @Test
-    fun `refines cycle still terminates and reports dead variables`() {
+    fun `refines cycle terminates without judging cyclically inherited variables`() {
+        // M1 and M2 form a REFINES cycle and each re-lists v, so each sees the other's v as inherited
+        // and v is judged at neither — matching rossi disabling the lints on a broken (non-rooted) chain.
+        // The point of the test is that resolution terminates; the broken chain is EB008's concern.
         val project = project(
             machines = listOf(
                 machine(
@@ -332,7 +336,7 @@ class IdentifierAnalyzerTest {
             ),
         )
 
-        assertThat(analyze(project).dead()).hasSize(2)
+        assertThat(analyze(project).dead()).isEmpty()
     }
 
     @Test
@@ -385,6 +389,90 @@ class IdentifierAnalyzerTest {
         )
 
         assertThat(analyze(project).dead()).isEmpty()
+    }
+
+    @Test
+    fun `variable referenced only in a refinement is not dead`() {
+        // v is INIT-assigned in M0 but referenced nowhere there; M1 refines M0 and reads v. The downward
+        // union carries that use up to v's declaring machine M0, so v is not dead. Read but never
+        // modified, it is now correctly the constant-in-disguise case (EB012, reported once at M0).
+        val project = project(
+            machines = listOf(
+                machine(
+                    "M0",
+                    variables = listOf(Variable("v", "v")),
+                    events = listOf(event("INITIALISATION", actions = listOf(Action("act1", "v ≔ 0")))),
+                ),
+                machine(
+                    "M1",
+                    refinesMachine = "M0",
+                    variables = listOf(Variable("v", "v")),
+                    events = listOf(
+                        event("INITIALISATION", extended = true),
+                        event("check", guards = listOf(Guard("grd1", "v > 0", false))),
+                    ),
+                ),
+            ),
+        )
+
+        assertThat(analyze(project).dead()).isEmpty()
+        assertThat(analyze(project).unmodified())
+            .singleElement()
+            .satisfies({ assertThat(it.filePath).isEqualTo("M0.bum") })
+    }
+
+    @Test
+    fun `variable modified only in a refinement is not unmodified`() {
+        // v is declared, read (invariant), and INIT-assigned in M0 but never modified by an M0 event;
+        // M1 refines M0 and assigns v in an event. The downward union of event-assignments reaches v's
+        // declaring machine M0, so v is not a constant-in-disguise — no EB012, and not dead.
+        val project = project(
+            machines = listOf(
+                machine(
+                    "M0",
+                    variables = listOf(Variable("v", "v")),
+                    invariants = listOf(Invariant("inv1", "v > 0", false)),
+                    events = listOf(event("INITIALISATION", actions = listOf(Action("act1", "v ≔ 1")))),
+                ),
+                machine(
+                    "M1",
+                    refinesMachine = "M0",
+                    variables = listOf(Variable("v", "v")),
+                    events = listOf(
+                        event("INITIALISATION", extended = true),
+                        event("step", actions = listOf(Action("act1", "v ≔ v + 1"))),
+                    ),
+                ),
+            ),
+        )
+
+        assertThat(analyze(project).unmodified()).isEmpty()
+        assertThat(analyze(project).dead()).isEmpty()
+    }
+
+    @Test
+    fun `a dead variable retained through a chain is reported once at the declaring machine`() {
+        // v is declared in M0 and retained (re-listed) in M1 but never used or modified anywhere. It is
+        // judged once, at its declaring machine M0 — a single finding, not one per machine that keeps it.
+        val project = project(
+            machines = listOf(
+                machine(
+                    "M0",
+                    variables = listOf(Variable("v", "v")),
+                    events = listOf(event("INITIALISATION", actions = listOf(Action("act1", "v ≔ 0")))),
+                ),
+                machine(
+                    "M1",
+                    refinesMachine = "M0",
+                    variables = listOf(Variable("v", "v")),
+                    events = listOf(event("INITIALISATION", extended = true)),
+                ),
+            ),
+        )
+
+        assertThat(analyze(project).dead())
+            .singleElement()
+            .satisfies({ assertThat(it.filePath).isEqualTo("M0.bum") })
     }
 
     @Test
