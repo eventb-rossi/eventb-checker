@@ -6,7 +6,10 @@ import com.eventb.checker.model.Machine
 import org.eventb.core.ast.FormulaFactory
 
 /**
- * The identifier sets Event-B refinement materializes into a machine beyond its literal clauses.
+ * Per-machine identifier sets the EB011/EB012/EB014 lints need but a machine's literal clauses do not
+ * give directly: what refinement materializes into it from ancestors (the `inherited*` sets), and — for
+ * the dead/unmodified-variable lints — how its own-and-below clauses use its declared variables across
+ * the refinement chain (the `chain*` sets and [inheritedVariableNames]).
  */
 data class MachineInheritance(
     /**
@@ -30,6 +33,26 @@ data class MachineInheritance(
      * or an unparseable inherited action). Empty for a machine without an INITIALISATION event.
      */
     val initAssignedIdentifiers: Set<String>?,
+    /**
+     * The identifiers declared by this machine's REFINES ancestors' own `variables`. A variable in
+     * this set is *inherited*, not declared here, so [IdentifierAnalyzer] skips it and judges it at
+     * the more abstract machine that declares it — each retained variable is judged exactly once.
+     */
+    val inheritedVariableNames: Set<String>,
+    /**
+     * References of this machine's own clauses ([Machine.ownUsage]) unioned with those of its transitive
+     * REFINES **descendants** — i.e. every use of a variable declared here, at or below its declaring
+     * machine. [IdentifierAnalyzer] combines this with the upward [inheritedReferences]; the downward
+     * half keeps a variable declared and typed here but used only in a refinement from being flagged
+     * dead. Descendants contribute their *own* usage only — their inherited sets are not echoed back up.
+     */
+    val chainReferences: Set<String>,
+    /**
+     * Variables assigned by this machine's own non-INITIALISATION events unioned with those of its
+     * transitive REFINES **descendants** — the whole-chain modification set. Keeps a variable declared
+     * here but modified only in a refinement from being flagged unmodified (EB012).
+     */
+    val chainEventAssignments: Set<String>,
 )
 
 /**
@@ -48,19 +71,36 @@ data class MachineInheritance(
 class MachineInheritanceResolver(private val ff: FormulaFactory = FormulaFactory.getDefault()) {
 
     fun resolve(project: EventBProject): Map<String, MachineInheritance> {
-        val resolution = Resolution(project.machines.associateBy { it.name })
+        val resolution = Resolution(
+            machinesByName = project.machines.associateBy { it.name },
+            childrenByParent = project.machines.groupBy { it.refinesMachine },
+        )
         return project.machines.associate { it.name to resolution.inheritanceOf(it) }
     }
 
     private data class EventContribution(val references: Set<String>, val assignments: Set<String>, val effectiveParameters: Set<String>)
 
-    private inner class Resolution(val machinesByName: Map<String, Machine>) {
+    private inner class Resolution(
+        val machinesByName: Map<String, Machine>,
+        /** Machines keyed by the name of the machine they REFINES (null key = root machines). */
+        val childrenByParent: Map<String?, List<Machine>>,
+    ) {
+        /**
+         * Each machine's own-text usage, parsed exactly once. Unlike the inheritance walks — which are
+         * deliberately recomputed per machine to stay order- and cycle-independent — [Machine.ownUsage]
+         * is a pure per-machine function, so memoizing it is safe and keeps the downward union from
+         * re-parsing a descendant's formulas once per ancestor (mirrors rossi's precomputed `mach_refs`).
+         */
+        private val ownUsageByName: Map<String, MachineUsage> = machinesByName.mapValues { it.value.ownUsage(ff) }
+
+        /** The machine [machine] REFINES, resolved against the project, or null if none or unresolvable. */
+        fun parentOf(machine: Machine): Machine? = machine.refinesMachine?.let { machinesByName[it] }
 
         fun inheritanceOf(machine: Machine): MachineInheritance {
             val references = mutableSetOf<String>()
             val eventAssignments = mutableSetOf<String>()
 
-            val parent = machine.refinesMachine?.let { machinesByName[it] }
+            val parent = parentOf(machine)
             if (parent != null) {
                 references.addAll(invariantReferencesIncludingSelf(parent))
                 for (event in machine.events.filter { it.extended }) {
@@ -74,7 +114,52 @@ class MachineInheritanceResolver(private val ff: FormulaFactory = FormulaFactory
                 }
             }
 
-            return MachineInheritance(references, eventAssignments, initAssignedIdentifiers(machine))
+            // Own usage plus every descendant's own usage — the memo already holds each machine's, so
+            // no formula is re-parsed here (the analyzer reads these instead of recomputing own usage).
+            val own = ownUsageByName.getValue(machine.name)
+            val chainReferences = own.references.toMutableSet()
+            val chainEventAssignments = own.eventAssigned.toMutableSet()
+            for (descendantName in transitiveDescendants(machine)) {
+                val usage = ownUsageByName.getValue(descendantName)
+                chainReferences.addAll(usage.references)
+                chainEventAssignments.addAll(usage.eventAssigned)
+            }
+
+            return MachineInheritance(
+                inheritedReferences = references,
+                inheritedEventAssignments = eventAssignments,
+                initAssignedIdentifiers = initAssignedIdentifiers(machine),
+                inheritedVariableNames = inheritedVariableNames(machine),
+                chainReferences = chainReferences,
+                chainEventAssignments = chainEventAssignments,
+            )
+        }
+
+        /**
+         * The identifiers declared by [machine]'s REFINES ancestors' own `variables` — the variables
+         * it inherits rather than declares. Cycle-guarded upward walk (a cyclic member sees its
+         * partner's variables as inherited, so such a variable is judged nowhere, matching rossi's
+         * disabling of the lints on a broken chain).
+         */
+        fun inheritedVariableNames(machine: Machine, visiting: MutableSet<String> = mutableSetOf()): Set<String> {
+            val parent = parentOf(machine) ?: return emptySet()
+            if (!visiting.add(machine.name)) return emptySet()
+
+            val names = parent.variables.mapTo(mutableSetOf()) { it.identifier }
+            names.addAll(inheritedVariableNames(parent, visiting))
+            return names
+        }
+
+        /** Names of the machines that refine [machine] transitively, cycle-guarded (mirrors the upward walks). */
+        fun transitiveDescendants(machine: Machine, visiting: MutableSet<String> = mutableSetOf()): Set<String> {
+            if (!visiting.add(machine.name)) return emptySet()
+
+            val descendants = mutableSetOf<String>()
+            for (child in childrenByParent[machine.name].orEmpty()) {
+                descendants.add(child.name)
+                descendants.addAll(transitiveDescendants(child, visiting))
+            }
+            return descendants
         }
 
         /** The events of [parent] that [event] refines, resolved via the shared [refinedEventLabels]. */
@@ -105,7 +190,7 @@ class MachineInheritanceResolver(private val ff: FormulaFactory = FormulaFactory
             val assignments = mutableSetOf<String>()
             val effectiveParameters = mutableSetOf<String>()
             if (event.extended) {
-                val parent = machine.refinesMachine?.let { machinesByName[it] }
+                val parent = parentOf(machine)
                 if (parent != null) {
                     for (abstractEvent in abstractEventsOf(parent, event)) {
                         val ancestor = contributionOf(parent, abstractEvent, visiting)
@@ -144,7 +229,7 @@ class MachineInheritanceResolver(private val ff: FormulaFactory = FormulaFactory
             if (!visiting.add(machine.name)) return emptySet()
 
             val references = machine.invariantReferenceNames(ff).toMutableSet()
-            machine.refinesMachine?.let { machinesByName[it] }?.let { parent ->
+            parentOf(machine)?.let { parent ->
                 references.addAll(invariantReferencesIncludingSelf(parent, visiting))
             }
             return references
