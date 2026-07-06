@@ -60,6 +60,62 @@ class TypeCheckerTest {
     }
 
     @Test
+    fun `constant never typed by an axiom is a type error`() {
+        val project = project(
+            contexts = listOf(
+                context(
+                    "C1",
+                    carrierSets = listOf(CarrierSet("S", "S")),
+                    constants = listOf(Constant("c", "c"), Constant("dead", "dead")),
+                    axioms = listOf(Axiom("axm1", "c ∈ S", false)),
+                ),
+            ),
+        )
+
+        val errors = typeChecker.checkProject(project)
+
+        assertThat(errors.filter { it.ruleId == ValidationRules.TYPE_ERROR.id })
+            .singleElement()
+            .satisfies({
+                assertThat(it.severity).isEqualTo(ValidationSeverity.ERROR)
+                assertThat(it.element).isEqualTo("dead")
+                assertThat(it.message).contains("dead")
+            })
+    }
+
+    @Test
+    fun `bare carrier set is not reported as an untyped constant`() {
+        val project = project(
+            contexts = listOf(context("C1", carrierSets = listOf(CarrierSet("S", "S")))),
+        )
+
+        val errors = typeChecker.checkProject(project)
+
+        assertThat(errors).noneMatch { it.ruleId == ValidationRules.TYPE_ERROR.id }
+    }
+
+    @Test
+    fun `constant typed transitively by a later axiom is not flagged untyped`() {
+        // axm1 `c = d` is type-checked before axm2 `d ∈ ℤ` grounds d, so the single forward pass leaves
+        // c untyped in the environment. c IS referenced by an axiom, so it must not be reported as
+        // never given a type — Rodin's global inference types it.
+        val project = project(
+            contexts = listOf(
+                context(
+                    "C1",
+                    constants = listOf(Constant("c", "c"), Constant("d", "d")),
+                    axioms = listOf(
+                        Axiom("axm1", "c = d", false),
+                        Axiom("axm2", "d ∈ ℤ", false),
+                    ),
+                ),
+            ),
+        )
+
+        assertThat(typeChecker.checkProject(project)).noneMatch { it.ruleId == ValidationRules.TYPE_ERROR.id }
+    }
+
+    @Test
     fun `variable typed by invariant`() {
         val project = project(
             machines = listOf(
