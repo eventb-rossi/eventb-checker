@@ -10,13 +10,19 @@ import org.eventb.core.ast.FormulaFactory
  */
 data class MachineInheritance(
     /**
-     * Names referenced by inherited clauses: every ancestor invariant, plus the guards and actions
-     * that `extended` events inherit from their abstract events (with inherited event parameters
-     * subtracted, so they never surface as machine-level references).
+     * Names referenced by inherited clauses: every ancestor invariant (typing-shaped conjuncts
+     * excluded, exactly as [nonTypingReferenceNames] does for own invariants), plus the guards and
+     * action right-hand sides that `extended` events inherit from their abstract events (with
+     * inherited event parameters subtracted, so they never surface as machine-level references).
      */
     val inheritedReferences: Set<String>,
-    /** Names assigned by actions that `extended` events (INITIALISATION included) inherit. */
-    val inheritedAssignments: Set<String>,
+    /**
+     * Names assigned by actions that `extended` **non-INITIALISATION** events inherit. INITIALISATION
+     * writes are tracked apart in [initAssignedIdentifiers]: giving a variable its initial value is
+     * not *modifying* it, and the split is what lets EB012 recognise a constant-in-disguise
+     * (INIT-assigned, never modified) inherited from an abstract machine.
+     */
+    val inheritedEventAssignments: Set<String>,
     /**
      * Every name the machine's materialized INITIALISATION assigns — its own actions plus, for an
      * extended INITIALISATION, the inherited chain's — or null when that chain cannot be fully
@@ -52,7 +58,7 @@ class MachineInheritanceResolver(private val ff: FormulaFactory = FormulaFactory
 
         fun inheritanceOf(machine: Machine): MachineInheritance {
             val references = mutableSetOf<String>()
-            val assignments = mutableSetOf<String>()
+            val eventAssignments = mutableSetOf<String>()
 
             val parent = machine.refinesMachine?.let { machinesByName[it] }
             if (parent != null) {
@@ -61,12 +67,14 @@ class MachineInheritanceResolver(private val ff: FormulaFactory = FormulaFactory
                     for (abstractEvent in abstractEventsOf(parent, event)) {
                         val contribution = contributionOf(parent, abstractEvent)
                         references.addAll(contribution.references)
-                        assignments.addAll(contribution.assignments)
+                        // An extended INITIALISATION's inherited writes are init-assignments, tracked
+                        // by initAssignedIdentifiers; only genuine events contribute modifications.
+                        if (event.label != INITIALISATION) eventAssignments.addAll(contribution.assignments)
                     }
                 }
             }
 
-            return MachineInheritance(references, assignments, initAssignedIdentifiers(machine))
+            return MachineInheritance(references, eventAssignments, initAssignedIdentifiers(machine))
         }
 
         /** The events of [parent] that [event] refines, resolved via the shared [refinedEventLabels]. */
@@ -111,14 +119,14 @@ class MachineInheritanceResolver(private val ff: FormulaFactory = FormulaFactory
 
             val ownReferences = mutableSetOf<String>()
             for (guard in event.guards) {
-                ff.parsePredicateOrNull(guard.predicate)?.freeIdentifiers?.mapTo(ownReferences) { it.name }
+                ff.parsePredicateOrNull(guard.predicate)?.let { ownReferences.addAll(it.referenceNames()) }
             }
             for (action in event.actions) {
                 val parsed = ff.parseAssignmentOrNull(action.assignment) ?: continue
-                parsed.freeIdentifiers.mapTo(ownReferences) { it.name }
-                val assigned = parsed.assignedIdentifiers.map { it.name }
-                ownReferences.addAll(assigned)
-                assignments.addAll(assigned)
+                // Only the right-hand side is a reference; a written variable is not "used" by being
+                // assigned (mirrors the own-machine rule in IdentifierAnalyzer).
+                ownReferences.addAll(parsed.rhsReferenceNames())
+                assignments.addAll(parsed.assignedNames())
             }
             references.addAll(ownReferences - effectiveParameters)
 
@@ -126,14 +134,16 @@ class MachineInheritanceResolver(private val ff: FormulaFactory = FormulaFactory
             return EventContribution(references, assignments, effectiveParameters)
         }
 
-        /** Free identifiers of [machine]'s own invariants unioned with its ancestors'. */
+        /**
+         * References of [machine]'s own invariants unioned with its ancestors', typing-shaped
+         * conjuncts excluded (each machine's invariants judged against that machine's own variables,
+         * so `v ∈ E` does not count as a use of `v`). Theorem invariants are kept in full — a theorem
+         * states a property, not a typing declaration.
+         */
         fun invariantReferencesIncludingSelf(machine: Machine, visiting: MutableSet<String> = mutableSetOf()): Set<String> {
             if (!visiting.add(machine.name)) return emptySet()
 
-            val references = mutableSetOf<String>()
-            for (invariant in machine.invariants) {
-                ff.parsePredicateOrNull(invariant.predicate)?.freeIdentifiers?.mapTo(references) { it.name }
-            }
+            val references = machine.invariantReferenceNames(ff).toMutableSet()
             machine.refinesMachine?.let { machinesByName[it] }?.let { parent ->
                 references.addAll(invariantReferencesIncludingSelf(parent, visiting))
             }

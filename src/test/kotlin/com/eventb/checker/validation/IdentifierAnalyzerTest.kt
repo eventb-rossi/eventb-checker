@@ -4,12 +4,9 @@ import com.eventb.checker.TestModelBuilders.context
 import com.eventb.checker.TestModelBuilders.event
 import com.eventb.checker.TestModelBuilders.inheritance
 import com.eventb.checker.TestModelBuilders.machine
-import com.eventb.checker.TestModelBuilders.parsedFormulas
 import com.eventb.checker.TestModelBuilders.project
 import com.eventb.checker.model.Action
-import com.eventb.checker.model.Axiom
 import com.eventb.checker.model.CarrierSet
-import com.eventb.checker.model.Constant
 import com.eventb.checker.model.EventBProject
 import com.eventb.checker.model.Guard
 import com.eventb.checker.model.Invariant
@@ -22,11 +19,14 @@ class IdentifierAnalyzerTest {
 
     private val analyzer = IdentifierAnalyzer()
 
-    private fun analyzeProject(project: EventBProject): List<ValidationError> =
-        analyzer.analyze(project, parsedFormulas(project), inheritance(project))
+    private fun analyze(project: EventBProject): List<ValidationError> = analyzer.analyze(project, inheritance(project))
+
+    private fun List<ValidationError>.dead() = filter { it.ruleId == ValidationRules.DEAD_VARIABLE.id }
+
+    private fun List<ValidationError>.unmodified() = filter { it.ruleId == ValidationRules.UNMODIFIED_VARIABLE.id }
 
     @Test
-    fun `no warnings for used variable`() {
+    fun `no warnings for a genuinely used variable`() {
         val project = project(
             machines = listOf(
                 machine(
@@ -34,26 +34,18 @@ class IdentifierAnalyzerTest {
                     variables = listOf(Variable("n", "n")),
                     invariants = listOf(Invariant("inv1", "n ∈ ℤ", false)),
                     events = listOf(
-                        event(
-                            "INITIALISATION",
-                            actions = listOf(Action("act1", "n ≔ 0")),
-                        ),
-                        event(
-                            "inc",
-                            actions = listOf(Action("act1", "n ≔ n + 1")),
-                        ),
+                        event("INITIALISATION", actions = listOf(Action("act1", "n ≔ 0"))),
+                        event("inc", actions = listOf(Action("act1", "n ≔ n + 1"))),
                     ),
                 ),
             ),
         )
 
-        val findings = analyzeProject(project)
-
-        assertThat(findings).isEmpty()
+        assertThat(analyze(project)).isEmpty()
     }
 
     @Test
-    fun `dead variable detected`() {
+    fun `unused variable is dead`() {
         val project = project(
             machines = listOf(
                 machine(
@@ -61,118 +53,123 @@ class IdentifierAnalyzerTest {
                     variables = listOf(Variable("x", "x"), Variable("unused", "unused")),
                     invariants = listOf(Invariant("inv1", "x ∈ ℤ", false)),
                     events = listOf(
-                        event(
-                            "INITIALISATION",
-                            actions = listOf(Action("act1", "x ≔ 0")),
-                        ),
+                        event("INITIALISATION", actions = listOf(Action("act1", "x ≔ 0"))),
+                        event("inc", actions = listOf(Action("act1", "x ≔ x + 1"))),
                     ),
                 ),
             ),
         )
 
-        val findings = analyzeProject(project)
-
-        assertThat(findings)
-            .filteredOn {
-                it.severity == ValidationSeverity.WARNING && it.message.contains("Dead variable") && it.message.contains("unused")
-            }
-            .singleElement()
+        val dead = analyze(project).dead()
+        assertThat(dead).singleElement().satisfies({
+            assertThat(it.severity).isEqualTo(ValidationSeverity.WARNING)
+            assertThat(it.message).contains("unused")
+        })
     }
 
     @Test
-    fun `dead constant detected`() {
-        val project = project(
-            contexts = listOf(
-                context(
-                    "C1",
-                    carrierSets = listOf(CarrierSet("S", "S")),
-                    constants = listOf(Constant("used", "used"), Constant("unused", "unused")),
-                    axioms = listOf(Axiom("axm1", "used ∈ S", false)),
-                ),
-            ),
-        )
-
-        val findings = analyzeProject(project)
-
-        assertThat(findings)
-            .filteredOn {
-                it.severity == ValidationSeverity.WARNING && it.message.contains("Dead constant") && it.message.contains("unused")
-            }
-            .singleElement()
-    }
-
-    @Test
-    fun `unmodified variable detected`() {
+    fun `variable typed only by a typing invariant is dead`() {
+        // `x ∈ ℤ` types x but is not a use of it; no event assigns x either, so x serves no purpose.
         val project = project(
             machines = listOf(
                 machine(
                     "M1",
                     variables = listOf(Variable("x", "x")),
                     invariants = listOf(Invariant("inv1", "x ∈ ℤ", false)),
+                    events = listOf(event("INITIALISATION", actions = listOf(Action("act1", "x ≔ 0")))),
                 ),
             ),
         )
 
-        val findings = analyzeProject(project)
-
-        assertThat(findings)
-            .filteredOn { it.severity == ValidationSeverity.INFO && it.message.contains("Unmodified variable") && it.message.contains("x") }
+        assertThat(analyze(project).dead())
             .singleElement()
+            .satisfies({ assertThat(it.message).contains("x") })
+        assertThat(analyze(project).unmodified()).isEmpty()
     }
 
     @Test
-    fun `assigned variable not flagged as unmodified`() {
+    fun `write-only variable is not flagged`() {
+        // `w` is assigned by an event but never read — an output. It is neither dead nor unmodified.
         val project = project(
             machines = listOf(
                 machine(
                     "M1",
-                    variables = listOf(Variable("n", "n")),
-                    invariants = listOf(Invariant("inv1", "n ∈ ℤ", false)),
+                    variables = listOf(Variable("w", "w")),
                     events = listOf(
-                        event(
-                            "inc",
-                            actions = listOf(Action("act1", "n ≔ n + 1")),
-                        ),
+                        event("INITIALISATION", actions = listOf(Action("act1", "w ≔ 0"))),
+                        event("emit", actions = listOf(Action("act1", "w ≔ 42"))),
                     ),
                 ),
             ),
         )
 
-        val findings = analyzeProject(project)
-
-        assertThat(findings)
-            .filteredOn { it.message.contains("Unmodified variable") && it.message.contains("'n'") }
-            .isEmpty()
+        assertThat(analyze(project)).isEmpty()
     }
 
     @Test
-    fun `carrier set not flagged as dead constant`() {
+    fun `init-assigned variable never modified is unmodified`() {
+        // `c` is set once by INITIALISATION, read by a real invariant, and never modified — a constant
+        // in disguise.
         val project = project(
-            contexts = listOf(
-                context(
-                    "C1",
-                    carrierSets = listOf(CarrierSet("S", "S")),
-                    axioms = listOf(Axiom("axm1", "finite(S)", false)),
+            machines = listOf(
+                machine(
+                    "M1",
+                    variables = listOf(Variable("c", "c")),
+                    invariants = listOf(Invariant("inv1", "c > 0", false)),
+                    events = listOf(event("INITIALISATION", actions = listOf(Action("act1", "c ≔ 1")))),
                 ),
             ),
         )
 
-        val findings = analyzeProject(project)
-
-        assertThat(findings)
-            .filteredOn { it.message.contains("Dead constant") && it.message.contains("S") }
-            .isEmpty()
+        assertThat(analyze(project).unmodified())
+            .singleElement()
+            .satisfies({
+                assertThat(it.severity).isEqualTo(ValidationSeverity.WARNING)
+                assertThat(it.message).contains("c")
+            })
+        assertThat(analyze(project).dead()).isEmpty()
     }
 
     @Test
-    fun `parameter not flagged as dead variable`() {
+    fun `variable modified by an event is not unmodified`() {
         val project = project(
-            contexts = listOf(
-                context(
-                    "C1",
-                    carrierSets = listOf(CarrierSet("S", "S")),
+            machines = listOf(
+                machine(
+                    "M1",
+                    variables = listOf(Variable("n", "n")),
+                    invariants = listOf(Invariant("inv1", "n > 0", false)),
+                    events = listOf(
+                        event("INITIALISATION", actions = listOf(Action("act1", "n ≔ 1"))),
+                        event("inc", actions = listOf(Action("act1", "n ≔ n + 1"))),
+                    ),
                 ),
             ),
+        )
+
+        assertThat(analyze(project).unmodified()).isEmpty()
+    }
+
+    @Test
+    fun `referenced but never assigned variable draws no finding`() {
+        // `q` is read but never assigned (not even by INITIALISATION): not dead (it is referenced) and
+        // not unmodified (EB012 is only for INIT-assigned variables). Its missing init is EB014's domain.
+        val project = project(
+            machines = listOf(
+                machine(
+                    "M1",
+                    variables = listOf(Variable("q", "q")),
+                    invariants = listOf(Invariant("inv1", "q > 0", false)),
+                ),
+            ),
+        )
+
+        assertThat(analyze(project)).isEmpty()
+    }
+
+    @Test
+    fun `parameter is not treated as a variable`() {
+        val project = project(
+            contexts = listOf(context("C1", carrierSets = listOf(CarrierSet("S", "S")))),
             machines = listOf(
                 machine(
                     "M1",
@@ -191,20 +188,12 @@ class IdentifierAnalyzerTest {
             ),
         )
 
-        val findings = analyzeProject(project)
-
-        assertThat(findings)
-            .filteredOn { it.message.contains("Dead variable") && it.message.contains("p") }
-            .isEmpty()
+        assertThat(analyze(project)).noneMatch { it.message.contains("'p'") }
     }
 
     @Test
     fun `empty project produces no findings`() {
-        val project = project()
-
-        val findings = analyzeProject(project)
-
-        assertThat(findings).isEmpty()
+        assertThat(analyze(project())).isEmpty()
     }
 
     @Test
@@ -228,9 +217,7 @@ class IdentifierAnalyzerTest {
             ),
         )
 
-        val findings = analyzeProject(project)
-
-        assertThat(findings).filteredOn { it.message.contains("Dead variable") }.isEmpty()
+        assertThat(analyze(project).dead()).isEmpty()
     }
 
     @Test
@@ -240,9 +227,9 @@ class IdentifierAnalyzerTest {
                 machine(
                     "M0",
                     variables = listOf(Variable("v", "v")),
-                    invariants = listOf(Invariant("inv1", "v ∈ ℤ", false)),
+                    invariants = listOf(Invariant("inv1", "v > 0", false)),
                     events = listOf(
-                        event("INITIALISATION", actions = listOf(Action("act1", "v ≔ 0"))),
+                        event("INITIALISATION", actions = listOf(Action("act1", "v ≔ 1"))),
                         event("op", actions = listOf(Action("act1", "v ≔ v + 1"))),
                     ),
                 ),
@@ -258,11 +245,8 @@ class IdentifierAnalyzerTest {
             ),
         )
 
-        val findings = analyzeProject(project)
-
-        assertThat(findings)
-            .filteredOn { it.message.contains("Unmodified variable") || it.message.contains("Dead variable") }
-            .isEmpty()
+        assertThat(analyze(project).unmodified()).isEmpty()
+        assertThat(analyze(project).dead()).isEmpty()
     }
 
     @Test
@@ -272,9 +256,10 @@ class IdentifierAnalyzerTest {
                 machine(
                     "M0",
                     variables = listOf(Variable("v", "v")),
+                    invariants = listOf(Invariant("inv1", "v > 0", false)),
                     events = listOf(
-                        event("INITIALISATION", actions = listOf(Action("act1", "v ≔ 0"))),
-                        event("abstract_op", actions = listOf(Action("act1", "v ≔ 1"))),
+                        event("INITIALISATION", actions = listOf(Action("act1", "v ≔ 1"))),
+                        event("abstract_op", actions = listOf(Action("act1", "v ≔ v + 1"))),
                     ),
                 ),
                 machine(
@@ -298,11 +283,8 @@ class IdentifierAnalyzerTest {
             ),
         )
 
-        val findings = analyzeProject(project)
-
-        assertThat(findings)
-            .filteredOn { it.message.contains("Unmodified variable") || it.message.contains("Dead variable") }
-            .isEmpty()
+        assertThat(analyze(project).unmodified()).isEmpty()
+        assertThat(analyze(project).dead()).isEmpty()
     }
 
     @Test
@@ -326,10 +308,8 @@ class IdentifierAnalyzerTest {
             ),
         )
 
-        val findings = analyzeProject(project)
-
-        assertThat(findings)
-            .filteredOn { it.message.contains("Dead variable") && it.filePath == "M1.bum" }
+        assertThat(analyze(project).dead())
+            .filteredOn { it.filePath == "M1.bum" }
             .singleElement()
     }
 
@@ -352,9 +332,7 @@ class IdentifierAnalyzerTest {
             ),
         )
 
-        val findings = analyzeProject(project)
-
-        assertThat(findings).filteredOn { it.message.contains("Dead variable") }.hasSize(2)
+        assertThat(analyze(project).dead()).hasSize(2)
     }
 
     @Test
@@ -380,66 +358,51 @@ class IdentifierAnalyzerTest {
             ),
         )
 
-        val findings = analyzeProject(project)
-
-        assertThat(findings)
-            .filteredOn { it.message.contains("Dead variable") && it.message.contains("'p'") }
+        assertThat(analyze(project).dead())
+            .filteredOn { it.message.contains("'p'") }
             .singleElement()
     }
 
     @Test
-    fun `variable referenced only via an inherited invariant is unmodified not dead`() {
+    fun `variable referenced only via an inherited non-typing invariant is not dead`() {
+        // M0 keeps r alive through a real (non-typing) invariant; M1 refines M0 and re-declares r
+        // without using it. The inherited invariant reference must reach M1 so r is not flagged dead.
         val project = project(
             machines = listOf(
                 machine(
                     "M0",
                     variables = listOf(Variable("r", "r")),
-                    invariants = listOf(Invariant("inv1", "r ∈ ℤ", false)),
-                    events = listOf(event("INITIALISATION", actions = listOf(Action("act1", "r ≔ 0")))),
+                    invariants = listOf(Invariant("inv1", "r > 0", false)),
+                    events = listOf(event("INITIALISATION", actions = listOf(Action("act1", "r ≔ 1")))),
                 ),
                 machine(
                     "M1",
                     refinesMachine = "M0",
                     variables = listOf(Variable("r", "r")),
-                ),
-            ),
-        )
-
-        val findings = analyzeProject(project)
-
-        assertThat(findings).filteredOn { it.message.contains("Dead variable") }.isEmpty()
-        assertThat(findings)
-            .filteredOn { it.message.contains("Unmodified variable") && it.filePath == "M1.bum" }
-            .singleElement()
-    }
-
-    @Test
-    fun `dead constant detection is unaffected by machine inheritance`() {
-        val project = project(
-            contexts = listOf(
-                context("C1", constants = listOf(Constant("k", "k"))),
-            ),
-            machines = listOf(
-                machine(
-                    "M0",
-                    variables = listOf(Variable("k", "k")),
-                    invariants = listOf(Invariant("inv1", "k ∈ ℤ", false)),
-                    events = listOf(event("INITIALISATION", actions = listOf(Action("act1", "k ≔ 0")))),
-                ),
-                machine(
-                    "M1",
-                    refinesMachine = "M0",
-                    seesContexts = listOf("C1"),
-                    variables = listOf(Variable("k", "k")),
                     events = listOf(event("INITIALISATION", extended = true)),
                 ),
             ),
         )
 
-        val findings = analyzeProject(project)
+        assertThat(analyze(project).dead()).isEmpty()
+    }
 
-        assertThat(findings)
-            .filteredOn { it.message.contains("Dead constant") && it.message.contains("'k'") }
-            .singleElement()
+    @Test
+    fun `unresolvable extended initialisation chain suppresses the variable lints`() {
+        // M1 refines an absent M0 with an extended INITIALISATION, so what it initialises is unknown.
+        // The broken REFINES is reported elsewhere (EB009); the lints must not guess `v` is dead.
+        val project = project(
+            machines = listOf(
+                machine(
+                    "M1",
+                    refinesMachine = "M0",
+                    variables = listOf(Variable("v", "v")),
+                    invariants = listOf(Invariant("inv1", "v ∈ ℤ", false)),
+                    events = listOf(event("INITIALISATION", extended = true)),
+                ),
+            ),
+        )
+
+        assertThat(analyze(project)).isEmpty()
     }
 }

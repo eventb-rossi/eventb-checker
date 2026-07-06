@@ -51,7 +51,7 @@ class ProjectValidator(private val checkProofs: Boolean = false) {
 
         allErrors.addAll(wdChecker.check(typeCheckResult.checkedFormulas))
         val inheritance = inheritanceResolver.resolve(project)
-        allErrors.addAll(identifierAnalyzer.analyze(project, typeCheckResult.parsedFormulas, inheritance))
+        allErrors.addAll(identifierAnalyzer.analyze(project, inheritance))
         allErrors.addAll(eventCompletenessChecker.check(project, inheritance))
         allErrors.addAll(duplicateNameChecker.check(project))
         allErrors.addAll(shadowedNameChecker.check(project))
