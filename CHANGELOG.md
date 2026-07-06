@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.11] - 2026-07-07
 
 Reworks the semantics of several "validate" warning and error codes.
 
