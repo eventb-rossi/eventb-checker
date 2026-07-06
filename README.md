@@ -16,8 +16,8 @@ A command-line validator for [Event-B](https://www.event-b.org/) models. It read
 | Cross-reference integrity | ERROR | Verifies SEES, REFINES, and EXTENDS targets exist in the project |
 | Refinement checks | ERROR | Reports new events that assign a variable inherited from an abstract machine, and guards or actions that reference a variable dropped by the refinement |
 | Well-definedness | INFO | Reports non-trivial well-definedness conditions (e.g., division by zero) |
-| Dead variables | WARNING | Flags a variable that nothing references outside typing invariants and that no event assigns; write-only variables are exempt |
-| Unmodified variables | WARNING | Flags a variable that INITIALISATION assigns but no event ever modifies — a constant in disguise |
+| Dead variables | WARNING | Flags a variable that nothing references outside typing invariants and that no event assigns; write-only variables are exempt. Judged once, at the machine that declares it, considering references across the whole refinement chain |
+| Unmodified variables | WARNING | Flags a variable that INITIALISATION assigns but no event ever modifies — a constant in disguise. Modifications anywhere in the refinement chain count |
 | INITIALISATION completeness | WARNING | Checks that INITIALISATION assigns all declared machine variables |
 | Duplicate component definitions | ERROR | Reports the same machine or context defined multiple times within the parsed input set; one definition is kept and the rest are reported |
 | Duplicate identifiers/labels | ERROR | Reports an identifier (variable, constant, carrier set, parameter) or label (invariant, event, guard, action, axiom, witness) declared more than once within the same scope, matching Rodin's static checker |
