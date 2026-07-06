@@ -1,6 +1,7 @@
 package com.eventb.checker.validation
 
 import org.eventb.core.ast.Assignment
+import org.eventb.core.ast.Expression
 import org.eventb.core.ast.FormulaFactory
 import org.eventb.core.ast.Predicate
 
@@ -19,4 +20,10 @@ internal fun FormulaFactory.parseAssignmentOrNull(assignment: String): Assignmen
 internal fun FormulaFactory.parsePredicateOrNull(predicate: String): Predicate? {
     val result = parsePredicate(predicate, null)
     return if (result.hasProblem()) null else result.parsedPredicate
+}
+
+/** The parsed expression, or null when [expression] has syntax errors; see [parseAssignmentOrNull]. */
+internal fun FormulaFactory.parseExpressionOrNull(expression: String): Expression? {
+    val result = parseExpression(expression, null)
+    return if (result.hasProblem()) null else result.parsedExpression
 }
