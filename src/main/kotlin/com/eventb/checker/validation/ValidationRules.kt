@@ -67,13 +67,16 @@ object ValidationRules {
     val DEAD_VARIABLE = RuleDescriptor(
         "EB011",
         "Dead variable",
-        "A machine variable is declared but never referenced in any invariant, guard, action, or witness formula.",
+        "A machine variable that nothing references outside typing-shaped invariants (e.g. 'v ∈ ℤ') and " +
+            "that no event assigns: it serves no purpose. A write-only variable (assigned but never read) " +
+            "is exempt, as it is an output.",
     )
 
     val UNMODIFIED_VARIABLE = RuleDescriptor(
         "EB012",
         "Unmodified variable",
-        "A machine variable is referenced in formulas but never assigned by any event action.",
+        "A machine variable that INITIALISATION assigns but no event ever modifies, yet is referenced — " +
+            "a constant in disguise. Consider declaring it a CONSTANT with the initial value as an axiom.",
     )
 
     val DEAD_CONSTANT = RuleDescriptor(

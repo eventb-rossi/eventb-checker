@@ -1,6 +1,5 @@
 package com.eventb.checker.validation
 
-import org.eventb.core.ast.Assignment
 import org.eventb.core.ast.Formula
 
 interface FormulaRecord {
@@ -32,9 +31,3 @@ data class TypeCheckResult(
     val parsedFormulas: List<ParsedFormula>,
     val checkedFormulas: List<TypeCheckedFormula>,
 )
-
-fun List<FormulaRecord>.referencedIdentifierNames(): Set<String> = flatMap { it.formula.freeIdentifiers.map { id -> id.name } }.toSet()
-
-fun List<FormulaRecord>.extractAssignedIdentifiers(): Set<String> = filter { it.kind == FormulaKind.ASSIGNMENT }
-    .flatMap { (it.formula as Assignment).assignedIdentifiers.map { id -> id.name } }
-    .toSet()

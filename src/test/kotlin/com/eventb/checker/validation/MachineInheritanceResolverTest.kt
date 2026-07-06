@@ -34,9 +34,9 @@ class MachineInheritanceResolverTest {
         val inheritance = resolver.resolve(project)
 
         assertThat(inheritance.getValue("M1").inheritedReferences).contains("v")
-        assertThat(inheritance.getValue("M1").inheritedAssignments).containsExactly("v")
+        assertThat(inheritance.getValue("M1").inheritedEventAssignments).containsExactly("v")
         assertThat(inheritance.getValue("M0").inheritedReferences).isEmpty()
-        assertThat(inheritance.getValue("M0").inheritedAssignments).isEmpty()
+        assertThat(inheritance.getValue("M0").inheritedEventAssignments).isEmpty()
     }
 
     @Test
@@ -191,11 +191,13 @@ class MachineInheritanceResolverTest {
 
     @Test
     fun `ancestor invariants are inherited across the whole chain`() {
+        // Non-typing invariants (`a = 0`, not `a ∈ ℤ`): typing-shaped conjuncts are excluded, so only
+        // real references propagate down the chain.
         val project = project(
             machines = listOf(
-                machine("M0", invariants = listOf(Invariant("inv1", "a ∈ ℤ", false))),
-                machine("M1", refinesMachine = "M0", invariants = listOf(Invariant("inv1", "b ∈ ℤ", false))),
-                machine("M2", refinesMachine = "M1", invariants = listOf(Invariant("inv1", "c ∈ ℤ", false))),
+                machine("M0", invariants = listOf(Invariant("inv1", "a = 0", false))),
+                machine("M1", refinesMachine = "M0", invariants = listOf(Invariant("inv1", "b = 0", false))),
+                machine("M2", refinesMachine = "M1", invariants = listOf(Invariant("inv1", "c = 0", false))),
             ),
         )
 
