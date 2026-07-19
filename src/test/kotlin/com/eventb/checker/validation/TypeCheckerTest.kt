@@ -155,6 +155,42 @@ class TypeCheckerTest {
     }
 
     @Test
+    fun `ill-typed arithmetic is rejected in every formula position`() {
+        val project = project(
+            contexts = listOf(
+                context("C1", axioms = listOf(Axiom("badAxiom", "TRUE + FALSE = 0", false))),
+            ),
+            machines = listOf(
+                machine(
+                    "M1",
+                    variables = listOf(Variable("x", "x")),
+                    invariants = listOf(
+                        Invariant("typing", "x ∈ ℤ", false),
+                        Invariant("badInvariant", "TRUE + FALSE = 0", false),
+                    ),
+                    variant = Variant("vrn1", "TRUE + FALSE"),
+                    events = listOf(
+                        event(
+                            "badEvent",
+                            actions = listOf(Action("badAction", "x ≔ TRUE + FALSE")),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val errors = typeChecker.checkProject(project).filter { it.ruleId == ValidationRules.TYPE_ERROR.id }
+
+        assertThat(errors).allSatisfy { assertThat(it.severity).isEqualTo(ValidationSeverity.ERROR) }
+        assertThat(errors.map { it.element }).contains(
+            "badAxiom",
+            "badInvariant",
+            "vrn1",
+            "badEvent/badAction",
+        )
+    }
+
+    @Test
     fun `maplet on right side of membership is a type error`() {
         // Regression: auction.zip guard `a ∈ AUCTIONS ↦ item` — the right-hand side is a
         // pair ℙ(AUCTIONS)×ℙ(ITEMS), not a set, so the membership cannot be typed.
@@ -273,6 +309,196 @@ class TypeCheckerTest {
         val errors = typeChecker.checkProject(project)
 
         assertThat(errors).isEmpty()
+    }
+
+    @Test
+    fun `event parameter conflicting with machine variable is a type error`() {
+        val project = project(
+            machines = listOf(
+                machine(
+                    "M1",
+                    variables = listOf(Variable("x", "x")),
+                    invariants = listOf(Invariant("inv1", "x ∈ ℤ", false)),
+                    events = listOf(event("evt", parameters = listOf(Parameter("x", "x")))),
+                ),
+            ),
+        )
+
+        val errors = typeChecker.checkProject(project)
+
+        assertThat(errors)
+            .filteredOn { it.ruleId == ValidationRules.TYPE_ERROR.id && it.element == "evt/x" }
+            .singleElement()
+            .satisfies({
+                assertThat(it.severity).isEqualTo(ValidationSeverity.ERROR)
+                assertThat(it.message).contains("conflicts with a visible identifier")
+            })
+    }
+
+    @Test
+    fun `event parameter conflicting with untyped machine variable is still reported`() {
+        val project = project(
+            machines = listOf(
+                machine(
+                    "M1",
+                    variables = listOf(Variable("x", "x")),
+                    events = listOf(event("evt", parameters = listOf(Parameter("x", "x")))),
+                ),
+            ),
+        )
+
+        val errors = typeChecker.checkProject(project)
+
+        assertThat(errors).anyMatch {
+            it.ruleId == ValidationRules.TYPE_ERROR.id &&
+                it.element == "evt/x" &&
+                it.message.contains("visible identifier")
+        }
+    }
+
+    @Test
+    fun `event parameter conflicting with seen context identifier is reported`() {
+        val project = project(
+            contexts = listOf(context("C1", carrierSets = listOf(CarrierSet("S", "S")))),
+            machines = listOf(
+                machine(
+                    "M1",
+                    seesContexts = listOf("C1"),
+                    events = listOf(event("evt", parameters = listOf(Parameter("S", "S")))),
+                ),
+            ),
+        )
+
+        val errors = typeChecker.checkProject(project)
+
+        assertThat(errors).anyMatch {
+            it.ruleId == ValidationRules.TYPE_ERROR.id &&
+                it.element == "evt/S" &&
+                it.message.contains("visible identifier")
+        }
+    }
+
+    @Test
+    fun `extended event cannot redeclare an inherited parameter`() {
+        val project = project(
+            machines = listOf(
+                machine(
+                    "Base",
+                    events = listOf(
+                        event(
+                            "evt",
+                            parameters = listOf(Parameter("p", "p")),
+                            guards = listOf(Guard("grd1", "p ∈ ℤ", false)),
+                        ),
+                    ),
+                ),
+                machine(
+                    "Refined",
+                    refinesMachine = "Base",
+                    events = listOf(
+                        event(
+                            "evt",
+                            extended = true,
+                            refinesEvents = listOf("evt"),
+                            parameters = listOf(Parameter("p", "p")),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val errors = typeChecker.checkProject(project)
+
+        assertThat(errors)
+            .filteredOn { it.ruleId == ValidationRules.TYPE_ERROR.id && it.element == "evt/p" }
+            .singleElement()
+            .satisfies({ assertThat(it.message).contains("conflicts with an inherited parameter") })
+    }
+
+    @Test
+    fun `circular refinement does not treat a local parameter as inherited from itself`() {
+        val project = project(
+            machines = listOf(
+                machine(
+                    "M1",
+                    refinesMachine = "M2",
+                    events = listOf(
+                        event(
+                            "evt",
+                            extended = true,
+                            refinesEvents = listOf("evt"),
+                            parameters = listOf(Parameter("p", "p")),
+                        ),
+                    ),
+                ),
+                machine(
+                    "M2",
+                    refinesMachine = "M1",
+                    events = listOf(event("evt", extended = true, refinesEvents = listOf("evt"))),
+                ),
+            ),
+        )
+
+        assertThat(typeChecker.checkProject(project)).noneMatch {
+            it.ruleId == ValidationRules.TYPE_ERROR.id &&
+                it.element == "evt/p" &&
+                it.message.contains("conflicts with an inherited parameter")
+        }
+    }
+
+    @Test
+    fun `non-extended refinement may redeclare an abstract parameter`() {
+        val project = project(
+            machines = listOf(
+                machine(
+                    "Base",
+                    events = listOf(
+                        event(
+                            "evt",
+                            parameters = listOf(Parameter("p", "p")),
+                            guards = listOf(Guard("grd1", "p ∈ ℤ", false)),
+                        ),
+                    ),
+                ),
+                machine(
+                    "Refined",
+                    refinesMachine = "Base",
+                    events = listOf(
+                        event(
+                            "evt",
+                            refinesEvents = listOf("evt"),
+                            parameters = listOf(Parameter("p", "p")),
+                            guards = listOf(Guard("grd1", "p ∈ ℤ", false)),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        assertThat(typeChecker.checkProject(project)).isEmpty()
+    }
+
+    @Test
+    fun `locally duplicated parameter does not also report a parameter conflict`() {
+        val project = project(
+            machines = listOf(
+                machine(
+                    "M1",
+                    variables = listOf(Variable("x", "x")),
+                    invariants = listOf(Invariant("inv1", "x ∈ ℤ", false)),
+                    events = listOf(
+                        event(
+                            "evt",
+                            parameters = listOf(Parameter("x", "x"), Parameter("x", "x")),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        assertThat(typeChecker.checkProject(project)).noneMatch {
+            it.ruleId == ValidationRules.TYPE_ERROR.id && it.element == "evt/x"
+        }
     }
 
     @Test

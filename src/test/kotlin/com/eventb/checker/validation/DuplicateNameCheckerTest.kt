@@ -212,5 +212,199 @@ class DuplicateNameCheckerTest {
         assertThat(findings).isEmpty()
     }
 
+    @Test
+    fun `extended event local clauses conflict with inherited guard and action labels`() {
+        val project = project(
+            machines = listOf(
+                machine(
+                    "Base",
+                    events = listOf(
+                        event(
+                            "evt",
+                            guards = listOf(Guard("grd1", "x = x", false)),
+                            actions = listOf(Action("act1", "x ≔ x")),
+                        ),
+                    ),
+                ),
+                machine(
+                    "Refined",
+                    refinesMachine = "Base",
+                    events = listOf(
+                        event(
+                            "evt",
+                            extended = true,
+                            refinesEvents = listOf("evt"),
+                            guards = listOf(Guard("act1", "x = x", false)),
+                            actions = listOf(Action("grd1", "x ≔ x")),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val findings = checker.check(project).filter { it.ruleId == ValidationRules.DUPLICATE_LABEL.id }
+
+        assertThat(findings).hasSize(2)
+        assertThat(findings).anySatisfy {
+            assertThat(it.element).isEqualTo("evt/act1")
+            assertThat(it.message).contains("Guard label 'act1'").contains("inherited action label")
+        }
+        assertThat(findings).anySatisfy {
+            assertThat(it.element).isEqualTo("evt/grd1")
+            assertThat(it.message).contains("Action label 'grd1'").contains("inherited guard label")
+        }
+    }
+
+    @Test
+    fun `inherited label conflict follows a transitive extended chain`() {
+        val project = project(
+            machines = listOf(
+                machine(
+                    "Root",
+                    events = listOf(event("evt", guards = listOf(Guard("root", "x = x", false)))),
+                ),
+                machine(
+                    "Middle",
+                    refinesMachine = "Root",
+                    events = listOf(event("evt", extended = true, refinesEvents = listOf("evt"))),
+                ),
+                machine(
+                    "Leaf",
+                    refinesMachine = "Middle",
+                    events = listOf(
+                        event(
+                            "evt",
+                            extended = true,
+                            refinesEvents = listOf("evt"),
+                            guards = listOf(Guard("root", "x = x", false)),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val findings = checker.check(project)
+
+        assertThat(findings)
+            .filteredOn { it.ruleId == ValidationRules.DUPLICATE_LABEL.id && it.element == "evt/root" }
+            .singleElement()
+    }
+
+    @Test
+    fun `extended initialisation checks inherited action labels`() {
+        val project = project(
+            machines = listOf(
+                machine(
+                    "Base",
+                    events = listOf(event(INITIALISATION, actions = listOf(Action("init1", "x ≔ 0")))),
+                ),
+                machine(
+                    "Refined",
+                    refinesMachine = "Base",
+                    events = listOf(
+                        event(
+                            INITIALISATION,
+                            extended = true,
+                            refinesEvents = listOf(INITIALISATION),
+                            actions = listOf(Action("init1", "y ≔ 0")),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val findings = checker.check(project)
+
+        assertThat(findings)
+            .filteredOn { it.ruleId == ValidationRules.DUPLICATE_LABEL.id && it.element == "$INITIALISATION/init1" }
+            .singleElement()
+    }
+
+    @Test
+    fun `non-extended refinement may reuse an abstract clause label`() {
+        val project = project(
+            machines = listOf(
+                machine(
+                    "Base",
+                    events = listOf(event("evt", guards = listOf(Guard("same", "x = x", false)))),
+                ),
+                machine(
+                    "Refined",
+                    refinesMachine = "Base",
+                    events = listOf(
+                        event(
+                            "evt",
+                            refinesEvents = listOf("evt"),
+                            guards = listOf(Guard("same", "x = x", false)),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        assertThat(checker.check(project)).isEmpty()
+    }
+
+    @Test
+    fun `locally repeated inherited label is reported only once`() {
+        val project = project(
+            machines = listOf(
+                machine(
+                    "Base",
+                    events = listOf(event("evt", guards = listOf(Guard("same", "x = x", false)))),
+                ),
+                machine(
+                    "Refined",
+                    refinesMachine = "Base",
+                    events = listOf(
+                        event(
+                            "evt",
+                            extended = true,
+                            refinesEvents = listOf("evt"),
+                            guards = listOf(
+                                Guard("same", "x = x", false),
+                                Guard("same", "x = x", false),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val findings = checker.check(project).filter { it.ruleId == ValidationRules.DUPLICATE_LABEL.id }
+
+        assertThat(findings).singleElement()
+        assertThat(findings.single().element).isEqualTo("same")
+    }
+
+    @Test
+    fun `circular refinement does not treat a local clause label as inherited from itself`() {
+        val project = project(
+            machines = listOf(
+                machine(
+                    "M1",
+                    refinesMachine = "M2",
+                    events = listOf(
+                        event(
+                            "evt",
+                            extended = true,
+                            refinesEvents = listOf("evt"),
+                            guards = listOf(Guard("own", "1 = 1", false)),
+                        ),
+                    ),
+                ),
+                machine(
+                    "M2",
+                    refinesMachine = "M1",
+                    events = listOf(event("evt", extended = true, refinesEvents = listOf("evt"))),
+                ),
+            ),
+        )
+
+        assertThat(checker.check(project)).noneMatch {
+            it.ruleId == ValidationRules.DUPLICATE_LABEL.id && it.element == "evt/own"
+        }
+    }
+
     private fun List<ValidationError>.filteredOnElement(element: String): List<ValidationError> = filter { it.element == element }
 }

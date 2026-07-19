@@ -38,7 +38,8 @@ object ValidationRules {
         "EB006",
         "Type error",
         "A formula has a definite type conflict (e.g. mismatched operand types) against the inferred type " +
-            "environment, or a declared constant is never given a type by any axiom.",
+            "environment, a declared constant is never given a type by any axiom, or an event parameter " +
+            "conflicts with a visible identifier or inherited parameter.",
     )
 
     val CIRCULAR_EXTENDS = RuleDescriptor(
@@ -133,7 +134,8 @@ object ValidationRules {
     val DUPLICATE_LABEL = RuleDescriptor(
         "EB022",
         "Duplicate label",
-        "A label (invariant, event, guard, action, axiom, or witness) is used more than once within the same scope.",
+        "A label (invariant, event, guard, action, axiom, or witness) is used more than once within the same " +
+            "scope, including a local guard or action that conflicts with an inherited clause of an extended event.",
     )
 
     val SHADOWED_NAME = RuleDescriptor(

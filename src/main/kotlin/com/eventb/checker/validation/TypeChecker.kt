@@ -326,7 +326,14 @@ class TypeChecker(private val ff: FormulaFactory = FormulaFactory.getDefault()) 
     ) {
         val eventEnv = ff.makeTypeEnvironment()
         eventEnv.addAll(machineEnv)
-        val concreteParameters = effectiveEventParameterNames(machine, event, machinesByName)
+        val abstractParameters = if (event.extended || event.witnesses.isNotEmpty()) {
+            abstractEventParameterNames(machine, event, machinesByName)
+        } else {
+            emptySet()
+        }
+        val inheritedParameters = if (event.extended) abstractParameters else emptySet()
+        reportEventParameterConflicts(event, machineScope, inheritedParameters, filePath, errors)
+        val concreteParameters = inheritedParameters + event.parameters.map { it.identifier }
         val eventScope = IdentifierScope(
             identifiers = machineScope.contextIdentifiers + machineScope.concreteVariables + concreteParameters,
             primedIdentifiers = machineScope.concreteVariables,
@@ -353,7 +360,6 @@ class TypeChecker(private val ff: FormulaFactory = FormulaFactory.getDefault()) 
             )
         }
 
-        val abstractParameters = abstractEventParameterNames(machine, event, machinesByName)
         for (witness in event.witnesses) {
             val witnessDeclaredIdentifiers =
                 machineScope.contextIdentifiers +
@@ -374,43 +380,72 @@ class TypeChecker(private val ff: FormulaFactory = FormulaFactory.getDefault()) 
         dump?.recordEvent(machine, event, eventEnv)
     }
 
+    private fun reportEventParameterConflicts(
+        event: Event,
+        machineScope: MachineScope,
+        inheritedParameters: Set<String>,
+        filePath: String,
+        errors: MutableList<ValidationError>,
+    ) {
+        if (event.parameters.isEmpty()) return
+        val duplicateLocalParameters = duplicateNonBlankNameCounts(event.parameters.map { it.identifier }).keys
+
+        for (parameter in event.parameters) {
+            val name = parameter.identifier
+            if (name.isBlank() || name in duplicateLocalParameters) continue
+            val conflict = when {
+                name in inheritedParameters -> "an inherited parameter"
+                machineScope.invariantScope.contains(name) -> "a visible identifier"
+                else -> continue
+            }
+            errors.add(
+                ValidationError(
+                    filePath = filePath,
+                    severity = ValidationSeverity.ERROR,
+                    message = "Event parameter '$name' in event '${event.label}' conflicts with $conflict",
+                    element = "${event.label}/$name",
+                    ruleId = ValidationRules.TYPE_ERROR.id,
+                ),
+            )
+        }
+    }
+
     private fun effectiveEventParameterNames(
         machine: Machine,
         event: Event,
         machinesByName: Map<String, Machine>,
-        visiting: MutableSet<Pair<String, String>> = mutableSetOf(),
+        visiting: MutableSet<Pair<String, String>>,
     ): Set<String> {
-        val parameterNames = linkedSetOf<String>()
         val key = machine.name to event.label
-        if (!visiting.add(key)) {
-            return event.parameters.mapTo(linkedSetOf()) { it.identifier }
-        }
+        if (!visiting.add(key)) return emptySet()
 
+        val parameterNames = linkedSetOf<String>()
         if (event.extended) {
-            val refMachine = machine.refinesMachine?.let { machinesByName[it] }
-            if (refMachine != null) {
-                for (label in refinedEventLabels(event)) {
-                    val refEvent = refMachine.events.find { it.label == label }
-                    if (refEvent != null) {
-                        parameterNames.addAll(effectiveEventParameterNames(refMachine, refEvent, machinesByName, visiting))
-                    }
-                }
-            }
+            parameterNames.addAll(refinedEventParameterNames(machine, event, machinesByName, visiting))
         }
-
         event.parameters.mapTo(parameterNames) { it.identifier }
         visiting.remove(key)
         return parameterNames
     }
 
-    private fun abstractEventParameterNames(machine: Machine, event: Event, machinesByName: Map<String, Machine>): Set<String> {
+    private fun abstractEventParameterNames(machine: Machine, event: Event, machinesByName: Map<String, Machine>): Set<String> =
+        refinedEventParameterNames(
+            machine,
+            event,
+            machinesByName,
+            mutableSetOf(machine.name to event.label),
+        )
+
+    private fun refinedEventParameterNames(
+        machine: Machine,
+        event: Event,
+        machinesByName: Map<String, Machine>,
+        visiting: MutableSet<Pair<String, String>>,
+    ): Set<String> {
         val refMachine = machine.refinesMachine?.let { machinesByName[it] } ?: return emptySet()
         val parameterNames = linkedSetOf<String>()
-        for (label in refinedEventLabels(event)) {
-            val refEvent = refMachine.events.find { it.label == label }
-            if (refEvent != null) {
-                parameterNames.addAll(effectiveEventParameterNames(refMachine, refEvent, machinesByName))
-            }
+        for (refEvent in abstractEventsOf(refMachine, event)) {
+            parameterNames.addAll(effectiveEventParameterNames(refMachine, refEvent, machinesByName, visiting))
         }
         return parameterNames
     }

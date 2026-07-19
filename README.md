@@ -11,7 +11,7 @@ A command-line validator for [Event-B](https://www.event-b.org/) models. It read
 | Formula syntax | ERROR | Parses predicates, expressions, and assignments using the Rodin AST library |
 | Assignment in predicate | ERROR | Reports an invariant, guard, witness, or axiom that uses an assignment operator (`:=`, `:∈`, `:|`) where a predicate is required |
 | Undeclared identifiers | ERROR | Reports identifiers not declared in the surrounding context, machine, or event scope |
-| Type checking | ERROR | Reports definite type conflicts (e.g. mismatched operand types) found by the Rodin AST type checker, and constants that no axiom gives a type |
+| Type checking | ERROR | Reports definite type conflicts found by the Rodin AST type checker, constants that no axiom gives a type, and event parameters that conflict with visible identifiers or inherited parameters |
 | Unknown types | WARNING | Reports identifiers whose types cannot be inferred (often constructs the checker does not fully model, such as primed witness variables) |
 | Cross-reference integrity | ERROR | Verifies SEES, REFINES, and EXTENDS targets exist in the project |
 | Refinement checks | ERROR | Reports new events that assign a variable inherited from an abstract machine, and guards or actions that reference a variable dropped by the refinement |
@@ -20,7 +20,7 @@ A command-line validator for [Event-B](https://www.event-b.org/) models. It read
 | Unmodified variables | WARNING | Flags a variable that INITIALISATION assigns but no event ever modifies — a constant in disguise. Modifications anywhere in the refinement chain count |
 | INITIALISATION completeness | WARNING | Checks that INITIALISATION assigns all declared machine variables |
 | Duplicate component definitions | ERROR | Reports the same machine or context defined multiple times within the parsed input set; one definition is kept and the rest are reported |
-| Duplicate identifiers/labels | ERROR | Reports an identifier (variable, constant, carrier set, parameter) or label (invariant, event, guard, action, axiom, witness) declared more than once within the same scope, matching Rodin's static checker |
+| Duplicate identifiers/labels | ERROR | Reports an identifier or label declared more than once within the same scope, including local guard/action labels that conflict with inherited clauses of extended events, matching Rodin's static checker |
 | Shadowed names | WARNING | Flags a declared identifier (variable, constant, carrier set, parameter) whose spelling collides with a reserved Event-B operator or keyword token |
 | Proof status | WARNING | Reports undischarged/broken proof obligations from `.bpr`/`.bpo`/`.bps` files (with `--proofs`). The replay status in `.bps` takes precedence over the confidence stored with the `.bpr` proof tree, and broken proofs are counted as pending, matching Rodin |
 

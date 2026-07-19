@@ -162,10 +162,6 @@ class MachineInheritanceResolver(private val ff: FormulaFactory = FormulaFactory
             return descendants
         }
 
-        /** The events of [parent] that [event] refines, resolved via the shared [refinedEventLabels]. */
-        fun abstractEventsOf(parent: Machine, event: Event): List<Event> =
-            refinedEventLabels(event).mapNotNull { label -> parent.events.find { it.label == label } }
-
         /**
          * What [event], as materialized in [machine], contributes to any extended event refining
          * it: its ancestors' clauses (only while [event] is itself extended, so the chain stops
