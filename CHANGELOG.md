@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.12] - 2026-07-19
+
+### Added
+
+- Event parameter scope checks now reject parameters that conflict with machine variables, identifiers from seen contexts, or parameters inherited by extended events, matching Rodin's static checker.
+- Extended events now reject local guard or action labels that conflict with inherited clause labels, including cross-kind conflicts and labels inherited through multiple refinement levels.
+
+### Changed
+
+- Upgrade the Shadow build plugin and JUnit test dependency.
+
 ## [1.11] - 2026-07-07
 
 Reworks the semantics of several "validate" warning and error codes.

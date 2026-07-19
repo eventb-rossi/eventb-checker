@@ -210,7 +210,7 @@ The simplest option — a single `uses:` step that downloads the release JAR and
 ```yaml
 steps:
   - uses: actions/checkout@v6
-  - uses: eventb-rossi/eventb-checker@v1.11
+  - uses: eventb-rossi/eventb-checker@v1.12
     with:
       model-path: "models/*.zip"
 ```
