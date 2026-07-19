@@ -50,6 +50,20 @@ class FormulaValidatorTest {
     }
 
     @Test
+    fun `parallel deterministic assignment requires matching arity`() {
+        for (formula in listOf("x, y ≔ 1", "x ≔ 1, 2")) {
+            val errors = validator.validate(formulaCheck(formula, FormulaKind.ASSIGNMENT))
+
+            assertThat(errors).describedAs("Expected EB005 for: $formula").singleElement()
+                .satisfies({
+                    assertThat(it.ruleId).isEqualTo(ValidationRules.FORMULA_PARSE_ERROR.id)
+                    assertThat(it.severity).isEqualTo(ValidationSeverity.ERROR)
+                    assertThat(it.message).contains("Incompatible number of arguments")
+                })
+        }
+    }
+
+    @Test
     fun `validate check produces errors for invalid formula`() {
         val check = FormulaValidator.FormulaCheck(
             filePath = "test.bum",
