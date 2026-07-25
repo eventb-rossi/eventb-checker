@@ -38,6 +38,14 @@ tasks.test {
     useJUnitPlatform()
     // Emulate the JDK 24+ default XML depth limit so depth-related tests bite on JDK 21 too.
     systemProperty("jdk.xml.maxElementDepth", "100")
+    // ValidationScriptsTest shells out to these, so they are real test inputs: without
+    // declaring them the task stays UP-TO-DATE when only a script changed, and the build
+    // cache would let CI skip the very tests that guard them.
+    inputs.files(
+        "scripts/validate-models-core.sh",
+        ".github/scripts/validate-models.sh",
+        ".gitlab/scripts/validate-models.sh",
+    ).withPropertyName("validationScripts").withPathSensitivity(PathSensitivity.RELATIVE)
     testLogging {
         events("failed")
         showExceptions = true

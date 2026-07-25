@@ -12,6 +12,10 @@ on:
       - 'settings.gradle.kts'
       - 'gradle/**'
       - '.github/workflows/ci.yml'
+      - 'action.yml'
+      - 'scripts/**'
+      - '.github/scripts/**'
+      - '.gitlab/**'
   pull_request:
     branches: [main]
     paths:
@@ -20,6 +24,10 @@ on:
       - 'settings.gradle.kts'
       - 'gradle/**'
       - '.github/workflows/ci.yml'
+      - 'action.yml'
+      - 'scripts/**'
+      - '.github/scripts/**'
+      - '.gitlab/**'
   workflow_dispatch:
   workflow_call:
     inputs:
