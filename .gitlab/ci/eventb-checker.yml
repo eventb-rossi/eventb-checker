@@ -55,9 +55,25 @@ variables:
       else
         export PROOFS_FLAG=""
       fi
-      curl -fsSL -o /tmp/validate-models.sh \
-        "https://raw.githubusercontent.com/${EVENTB_CHECKER_REPO}/main/.gitlab/scripts/validate-models.sh"
-      bash /tmp/validate-models.sh
+      # Take the scripts from the same ref as the JAR, so pinning
+      # EVENTB_CHECKER_VERSION pins what actually runs and not just what is run on.
+      if [ "${EVENTB_CHECKER_VERSION}" = "latest" ]; then
+        script_ref="main"
+      else
+        script_ref="${EVENTB_CHECKER_VERSION}"
+      fi
+      base_url="https://raw.githubusercontent.com/${EVENTB_CHECKER_REPO}/${script_ref}"
+      # The wrapper sources scripts/validate-models-core.sh relative to its own
+      # location, so both files have to land in their repository layout. The
+      # directory is distinct from the one .eventb-validate-src clones into, which
+      # a shell runner with a shared /tmp would otherwise collide with.
+      script_dir="/tmp/eventb-checker-scripts"
+      mkdir -p "$script_dir/.gitlab/scripts" "$script_dir/scripts"
+      curl -fsSL -o "$script_dir/.gitlab/scripts/validate-models.sh" \
+        "${base_url}/.gitlab/scripts/validate-models.sh"
+      curl -fsSL -o "$script_dir/scripts/validate-models-core.sh" \
+        "${base_url}/scripts/validate-models-core.sh"
+      bash "$script_dir/.gitlab/scripts/validate-models.sh"
   artifacts:
     when: always
     paths:
