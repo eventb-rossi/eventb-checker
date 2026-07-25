@@ -22,6 +22,8 @@ class ValidationScriptsTest {
         assertThat(result.sarifFile.exists()).isTrue()
         assertThat(JSONObject(result.sarifFile.readText()).getJSONArray("runs")).isEmpty()
         assertThat(result.githubOutput.readText()).contains("valid=false")
+        // Code Scanning rejects an empty runs array, so action.yml skips the upload on this.
+        assertThat(result.githubOutput.readText()).contains("sarif-run-count=0")
     }
 
     @Test
@@ -75,7 +77,8 @@ class ValidationScriptsTest {
         val result = runGitHubScript("*.zip")
 
         assertThat(result.exitCode).isEqualTo(1)
-        assertThat(result.githubOutput.readText()).contains("error-count=1").contains("warning-count=1")
+        assertThat(result.githubOutput.readText())
+            .contains("error-count=1").contains("warning-count=1").contains("sarif-run-count=3")
 
         // Code Scanning rejects several runs sharing a category, so there must be exactly one.
         val runs = runsOf(result)

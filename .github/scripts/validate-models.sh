@@ -47,12 +47,15 @@ on_complete() {
   local total_errors="$2"
   local total_warnings="$3"
   local failures="$4"
+  local merged_runs="$5"
 
   # Set outputs
   echo "valid=$all_valid" >> "$GITHUB_OUTPUT"
   echo "error-count=$total_errors" >> "$GITHUB_OUTPUT"
   echo "warning-count=$total_warnings" >> "$GITHUB_OUTPUT"
   echo "sarif-file=eventb-checker-results.sarif" >> "$GITHUB_OUTPUT"
+  # Read by action.yml to skip an upload that Code Scanning would reject as empty.
+  echo "sarif-run-count=$merged_runs" >> "$GITHUB_OUTPUT"
 
   if [ "$failures" -gt 0 ]; then
     echo "::error::$failures model(s) failed validation"

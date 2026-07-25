@@ -20,7 +20,9 @@
 #   on_no_models_matched "$MODEL_GLOB"              – called when the glob matches no files
 #   on_model_end                                    – called after each model's output
 #   on_complete "$all_valid" "$total_errors" "$total_warnings" "$failures" "$merged_runs"
-#                                                   – called after the loop finishes
+#                                                   – called after the loop finishes;
+#                                                     $merged_runs is the number of models
+#                                                     that produced a SARIF run
 
 set -euo pipefail
 
@@ -119,6 +121,11 @@ validate_models() {
       "$sarif_tmpdir"/run_*.json \
       > eventb-checker-results.sarif
   else
+    # No model produced a run: the glob matched nothing, or every model crashed.
+    # Code Scanning rejects an empty runs array (HTTP 422, "1 item required; only
+    # 0 were supplied"), so callers are expected to skip the upload when the run
+    # count reported to on_complete is zero. The cost is that stale alerts are not
+    # cleared on this path; there is no way to clear them, and it already fails.
     jq -n \
       --arg schema "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json" \
       '{"$schema": $schema, "version": "2.1.0", "runs": []}' \
@@ -126,7 +133,7 @@ validate_models() {
   fi
   rm -rf "$sarif_tmpdir"
 
-  on_complete "$all_valid" "$total_errors" "$total_warnings" "$failures"
+  on_complete "$all_valid" "$total_errors" "$total_warnings" "$failures" "$run_index"
 
   if [ "$failures" -gt 0 ]; then
     return 1
