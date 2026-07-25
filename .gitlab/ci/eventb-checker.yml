@@ -3,7 +3,7 @@
 # Usage — add to your .gitlab-ci.yml:
 #
 #   include:
-#     - remote: 'https://raw.githubusercontent.com/eventb-rossi/eventb-checker/master/.gitlab/ci/eventb-checker.yml'
+#     - remote: 'https://raw.githubusercontent.com/eventb-rossi/eventb-checker/main/.gitlab/ci/eventb-checker.yml'
 #   variables:
 #     EVENTB_MODEL_GLOB: "models/*.zip"
 #
@@ -56,7 +56,7 @@ variables:
         export PROOFS_FLAG=""
       fi
       curl -fsSL -o /tmp/validate-models.sh \
-        "https://raw.githubusercontent.com/${EVENTB_CHECKER_REPO}/master/.gitlab/scripts/validate-models.sh"
+        "https://raw.githubusercontent.com/${EVENTB_CHECKER_REPO}/main/.gitlab/scripts/validate-models.sh"
       bash /tmp/validate-models.sh
   artifacts:
     when: always
