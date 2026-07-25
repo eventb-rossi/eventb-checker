@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.13]
+
+Fixes three separate faults in the GitHub Action's SARIF upload. Only the first affects the checker's own output; the rest are the action wrapper.
+
+### Fixed
+
+- The action no longer fails when `model-path` matches more than one archive. The merged report kept one SARIF run per model and concatenated the runs, and since 2025-07-21 Code Scanning rejects a report whose runs share a category — which all of them did, the action uploading with no category set. The action consequently worked with exactly one model and failed with two or more, after validation itself had already succeeded. The per-model results are now merged into a single run. `tool.driver.rules` is unioned across the models rather than taken from the first, since the checker emits only the rules a given model's findings reference and a clean first model would otherwise strip every rule descriptor from the report; results reference rules by `ruleId` and never by `ruleIndex`, so nothing needs re-indexing. Summary counts and the `::error`/`::warning` annotations are derived from each model's own report and are unchanged. Note that setting a `category` is not an alternative fix: it is stamped onto every run in the file, so the runs still collide.
+- Results now reach Code Scanning when validation fails. The upload step was guarded by a condition that named no status-check function, so GitHub applied the default `success()` and the step was skipped on exactly the runs that had findings to report.
+- The action no longer attempts to upload an empty report. When the glob matches nothing, or every model crashes, no run is produced and the Code Scanning API rejects the resulting empty `runs` array with `Invalid request. 1 item required; only 0 were supplied.` — stacking an opaque HTTP 422 on top of the real error. The upload is now skipped in that case.
+- A model whose checker process died is no longer reported as clean. The crash guard accepted any exit code other than 2 as long as the output parsed, but `jq empty` succeeds on empty input, so a JVM that was OOM-killed or failed to initialise (exit 137 or 1, nothing on stdout) passed it and the model was counted as having no findings. A run in which not one model was actually checked could report `valid=true` with zero errors and exit 0. The output is now probed for the SARIF run itself.
+- Results are uploaded only when the report covers every matched model. A crashed model contributes no run, and publishing the remainder under the same category made Code Scanning resolve every alert that model had raised — discarding findings that were still valid on a run whose only real signal was that an archive could not be read.
+- The GitLab template's `eventb-validate` job works again. It downloaded only the CI wrapper, to `/tmp`, but that wrapper sources `scripts/validate-models-core.sh` relative to its own location — from `/tmp` a path that does not exist — so the job failed before checking a single model. Both scripts are now downloaded into their repository layout. The template also referenced a `master` branch that the repository does not have; it now uses `main`, matching the README. `EVENTB_CHECKER_VERSION` now pins the wrapper and core script as well as the JAR, rather than always taking them from the tip of `main`.
+
+### Added
+
+- `category` and `upload-sarif` inputs on the GitHub Action. `category` distinguishes analyses when one repository runs the action more than once. `upload-sarif` turns the upload off for callers who want only the exit code and the annotations — notably pull requests from forks, whose token cannot be granted `security-events: write` and which therefore failed on the upload rather than on the models.
+- Each SARIF result now records the archive it came from in `properties.model`. A finding's path is the path inside its archive, so after the merge nothing else identifies its model.
+
 ## [1.12] - 2026-07-19
 
 ### Added
