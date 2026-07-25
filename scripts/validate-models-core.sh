@@ -77,8 +77,11 @@ validate_models() {
 
     on_model_result "$zip" "$sarif_output" "$model_errors" "$model_warnings"
 
-    # Save run to temp file for merging later
-    echo "$sarif_output" | jq '.runs[0]' > "$sarif_tmpdir/run_${run_index}.json"
+    # Save run to temp file for merging later. Zero-padded so the glob below
+    # expands in model order rather than lexicographically (run_10 < run_2).
+    local run_file
+    printf -v run_file '%s/run_%04d.json' "$sarif_tmpdir" "$run_index"
+    echo "$sarif_output" | jq '.runs[0]' > "$run_file"
     run_index=$((run_index + 1))
 
     on_model_end
@@ -90,11 +93,29 @@ validate_models() {
     failures=$((failures + 1))
   fi
 
-  # Write merged SARIF file from individual run files
+  # Write merged SARIF file from individual run files.
+  #
+  # The per-model runs are merged by concatenating their *results* into one
+  # run, not by concatenating the runs themselves: Code Scanning rejects a
+  # file carrying several runs that share a category, which is every run here.
+  # tool.driver.rules is unioned rather than taken from the first run, because
+  # the checker emits only the rules a given model's findings reference — so
+  # the first model's rule set is generally not a superset of the others'.
+  # Results carry ruleId (never ruleIndex), so nothing needs re-indexing.
   if compgen -G "$sarif_tmpdir/run_*.json" > /dev/null; then
     jq -s \
       --arg schema "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json" \
-      '{"$schema": $schema, "version": "2.1.0", "runs": .}' \
+      '{
+         "$schema": $schema,
+         "version": "2.1.0",
+         "runs": [{
+           "tool": {
+             "driver": ((first(.[] | .tool.driver? | select(type == "object")) // {})
+                        + {"rules": ([.[].tool.driver.rules[]?] | unique_by(.id))})
+           },
+           "results": [.[].results[]?]
+         }]
+       }' \
       "$sarif_tmpdir"/run_*.json \
       > eventb-checker-results.sarif
   else
