@@ -17,6 +17,14 @@ inputs:
     description: "Check proof status from .bpr/.bpo/.bps files"
     required: false
     default: "false"
+  category:
+    description: "Code Scanning category for the upload; set it when one repository runs this action more than once"
+    required: false
+    default: ""
+  upload-sarif:
+    description: "Upload results to GitHub Code Scanning (needs security-events: write)"
+    required: false
+    default: "true"
 
 outputs:
   valid:
@@ -77,7 +85,9 @@ runs:
       # An empty runs array is rejected with HTTP 422, so skip the upload entirely
       # when no model produced one. A missing output casts to 0, so this also
       # covers the case where the validate step never ran.
-      if: ${{ !cancelled() && steps.validate.outputs.sarif-run-count > 0 }}
+      if: ${{ !cancelled() && inputs.upload-sarif == 'true' && steps.validate.outputs.sarif-run-count > 0 }}
       uses: github/codeql-action/upload-sarif@v4
       with:
         sarif_file: eventb-checker-results.sarif
+        # An empty category is read as unset by the upload action.
+        category: ${{ inputs.category }}

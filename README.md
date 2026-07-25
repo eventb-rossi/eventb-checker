@@ -225,6 +225,21 @@ If `model-path` matches no files, the action fails as a configuration error inst
 | `checker-version` | no | `"latest"` | Release tag or `"latest"` |
 | `show-info` | no | `"false"` | Include INFO-severity findings |
 | `proofs` | no | `"false"` | Check proof status from `.bpr`/`.bpo`/`.bps` files |
+| `category` | no | `""` | Code Scanning category; set it when one repository runs the action more than once |
+| `upload-sarif` | no | `"true"` | Upload results to Code Scanning (needs `security-events: write`) |
+
+A pull request from a fork cannot be granted `security-events: write`, so the upload — and with
+it the whole job — fails there regardless of the models. Turn the upload off rather than skipping
+the action, which would disable validation on exactly the pull requests that most need it:
+
+```yaml
+  - uses: eventb-rossi/eventb-checker@v1.12
+    with:
+      model-path: "models/*.zip"
+      upload-sarif: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+```
+
+Annotations, the exit code, and the outputs are unaffected by `upload-sarif`.
 
 ## GitLab CI Integration
 
