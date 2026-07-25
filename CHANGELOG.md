@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.13]
+## [1.13] - 2026-07-26
 
 Fixes three separate faults in the GitHub Action's SARIF upload. Only the first affects the checker's own output; the rest are the action wrapper.
 

@@ -210,7 +210,7 @@ The simplest option — a single `uses:` step that downloads the release JAR and
 ```yaml
 steps:
   - uses: actions/checkout@v6
-  - uses: eventb-rossi/eventb-checker@v1.12
+  - uses: eventb-rossi/eventb-checker@v1.13
     with:
       model-path: "models/*.zip"
 ```
@@ -233,7 +233,7 @@ it the whole job — fails there regardless of the models. Turn the upload off r
 the action, which would disable validation on exactly the pull requests that most need it:
 
 ```yaml
-  - uses: eventb-rossi/eventb-checker@v1.12
+  - uses: eventb-rossi/eventb-checker@v1.13
     with:
       model-path: "models/*.zip"
       upload-sarif: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
