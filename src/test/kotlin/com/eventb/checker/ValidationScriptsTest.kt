@@ -86,6 +86,7 @@ class ValidationScriptsTest {
 
         val run = runs.getJSONObject(0)
         assertThat(urisOf(run)).containsExactly("b-invalid.zip", "c-warning.zip")
+        assertThat(modelsOf(run)).containsExactly("b-invalid.zip", "c-warning.zip")
         assertThat(ruleIdsOf(run)).containsExactlyInAnyOrder("EB005", "EB011")
         assertThat(run.getJSONObject("tool").getJSONObject("driver").getString("name")).isEqualTo("fake")
     }
@@ -191,6 +192,13 @@ class ValidationScriptsTest {
     private fun ruleIdsOf(run: JSONObject): List<String> {
         val rules = run.getJSONObject("tool").getJSONObject("driver").getJSONArray("rules")
         return (0 until rules.length()).map { rules.getJSONObject(it).getString("id") }
+    }
+
+    private fun modelsOf(run: JSONObject): List<String> {
+        val results = run.getJSONArray("results")
+        return (0 until results.length()).map {
+            results.getJSONObject(it).getJSONObject("properties").getString("model")
+        }
     }
 
     private fun urisOf(run: JSONObject): List<String> {

@@ -81,9 +81,16 @@ validate_models() {
 
     # Save run to temp file for merging later. Zero-padded so the glob below
     # expands in model order rather than lexicographically (run_10 < run_2).
+    #
+    # Each result records the archive it came from: a finding's uri is the path
+    # *inside* the archive, so once the runs are merged nothing else identifies
+    # which model produced it.
     local run_file
     printf -v run_file '%s/run_%04d.json' "$sarif_tmpdir" "$run_index"
-    echo "$sarif_output" | jq '.runs[0]' > "$run_file"
+    echo "$sarif_output" | jq --arg model "$zip" '
+      .runs[0]
+      | .results = [.results[]? | .properties = ((.properties // {}) + {model: $model})]
+    ' > "$run_file"
     run_index=$((run_index + 1))
 
     on_model_end

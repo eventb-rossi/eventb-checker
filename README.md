@@ -241,6 +241,11 @@ the action, which would disable validation on exactly the pull requests that mos
 
 Annotations, the exit code, and the outputs are unaffected by `upload-sarif`.
 
+Findings from every matched archive are merged into a single SARIF run, since Code Scanning
+rejects a report carrying several runs in one category. A finding's path is the path *inside*
+its archive, so two archives that hold the same internal project path produce indistinguishable
+alerts; each result also carries the archive it came from in `properties.model`.
+
 ## GitLab CI Integration
 
 External GitLab projects can validate Event-B models by including the reusable template:
