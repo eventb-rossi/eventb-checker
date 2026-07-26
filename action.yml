@@ -82,10 +82,10 @@ runs:
     - name: Upload SARIF to Code Scanning
       # A status check of success() is applied to any `if` that names no status
       # function, so listing the conclusions was not enough to run after a failure.
-      # An empty runs array is rejected with HTTP 422, so skip the upload entirely
-      # when no model produced one. A missing output casts to 0, so this also
-      # covers the case where the validate step never ran.
-      if: ${{ !cancelled() && inputs.upload-sarif == 'true' && steps.validate.outputs.sarif-run-count > 0 }}
+      # sarif-complete is false unless the report covers every matched model, which
+      # skips both the empty report Code Scanning rejects outright and the partial
+      # one that would make it resolve the alerts of the models that crashed.
+      if: ${{ !cancelled() && inputs.upload-sarif == 'true' && steps.validate.outputs.sarif-complete == 'true' }}
       uses: github/codeql-action/upload-sarif@v4
       with:
         sarif_file: eventb-checker-results.sarif

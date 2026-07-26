@@ -19,10 +19,15 @@
 #   on_model_crash  "$zip" "$stderr_msg"            – called on checker crash
 #   on_no_models_matched "$MODEL_GLOB"              – called when the glob matches no files
 #   on_model_end                                    – called after each model's output
-#   on_complete "$all_valid" "$total_errors" "$total_warnings" "$failures" "$merged_runs"
-#                                                   – called after the loop finishes;
+#   on_complete "$all_valid" "$total_errors" "$total_warnings" "$failures" \
+#               "$merged_runs" "$matched_models"
+#                                                   – called after the loop finishes.
 #                                                     $merged_runs is the number of models
-#                                                     that produced a SARIF run
+#                                                     that produced a SARIF run, and
+#                                                     $matched_models the number the glob
+#                                                     matched; they differ when a model
+#                                                     crashed, i.e. when the merged report
+#                                                     is only a partial picture
 
 set -euo pipefail
 
@@ -52,8 +57,11 @@ validate_models() {
     local sarif_output
     sarif_output=$($CHECKER_CMD check --format sarif $SHOW_INFO_FLAG $PROOFS_FLAG "$zip" 2>/tmp/checker_stderr) && local checker_rc=0 || local checker_rc=$?
 
-    # If checker crashed (exit code 2) or output is not valid JSON, handle gracefully
-    if [ "$checker_rc" -eq 2 ] || ! echo "$sarif_output" | jq empty 2>/dev/null; then
+    # Treat anything that did not produce a usable SARIF run as a crash. Exit code 2
+    # is the checker's own "input error", but a JVM that dies — OOM-killed, failed VM
+    # init — exits with some other code and writes nothing at all, and `jq empty`
+    # succeeds on empty input, so the output has to be probed for the run itself.
+    if [ "$checker_rc" -eq 2 ] || ! echo "$sarif_output" | jq -e '.runs[0].results | type == "array"' > /dev/null 2>&1; then
       local stderr_msg
       stderr_msg=$(cat /tmp/checker_stderr 2>/dev/null || echo "Unknown error")
       on_model_crash "$zip" "$stderr_msg"
@@ -63,11 +71,12 @@ validate_models() {
       continue
     fi
 
-    # Extract counts from SARIF results
+    # Extract both counts from the SARIF results in one pass
     local model_errors
     local model_warnings
-    model_errors=$(echo "$sarif_output" | jq '[.runs[0].results[] | select(.level == "error")] | length')
-    model_warnings=$(echo "$sarif_output" | jq '[.runs[0].results[] | select(.level == "warning")] | length')
+    read -r model_errors model_warnings < <(echo "$sarif_output" | jq -r '
+      [.runs[0].results[].level] |
+      "\([.[] | select(. == "error")] | length) \([.[] | select(. == "warning")] | length)"')
 
     total_errors=$((total_errors + model_errors))
     total_warnings=$((total_warnings + model_warnings))
@@ -140,7 +149,8 @@ validate_models() {
   fi
   rm -rf "$sarif_tmpdir"
 
-  on_complete "$all_valid" "$total_errors" "$total_warnings" "$failures" "$run_index"
+  on_complete "$all_valid" "$total_errors" "$total_warnings" "$failures" \
+              "$run_index" "$matched_models"
 
   if [ "$failures" -gt 0 ]; then
     return 1

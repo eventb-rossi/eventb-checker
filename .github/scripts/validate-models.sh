@@ -48,14 +48,24 @@ on_complete() {
   local total_warnings="$3"
   local failures="$4"
   local merged_runs="$5"
+  local matched_models="$6"
 
   # Set outputs
   echo "valid=$all_valid" >> "$GITHUB_OUTPUT"
   echo "error-count=$total_errors" >> "$GITHUB_OUTPUT"
   echo "warning-count=$total_warnings" >> "$GITHUB_OUTPUT"
   echo "sarif-file=eventb-checker-results.sarif" >> "$GITHUB_OUTPUT"
-  # Read by action.yml to skip an upload that Code Scanning would reject as empty.
   echo "sarif-run-count=$merged_runs" >> "$GITHUB_OUTPUT"
+
+  # Read by action.yml to decide whether the report is safe to publish. Only a
+  # report covering every matched model is: an empty one is rejected outright,
+  # and a partial one makes Code Scanning resolve the alerts of the models
+  # missing from it, silently discarding findings that are still valid.
+  if [ "$merged_runs" -gt 0 ] && [ "$merged_runs" -eq "$matched_models" ]; then
+    echo "sarif-complete=true" >> "$GITHUB_OUTPUT"
+  else
+    echo "sarif-complete=false" >> "$GITHUB_OUTPUT"
+  fi
 
   if [ "$failures" -gt 0 ]; then
     echo "::error::$failures model(s) failed validation"

@@ -23,7 +23,7 @@ class ValidationScriptsTest {
         assertThat(JSONObject(result.sarifFile.readText()).getJSONArray("runs")).isEmpty()
         assertThat(result.githubOutput.readText()).contains("valid=false")
         // Code Scanning rejects an empty runs array, so action.yml skips the upload on this.
-        assertThat(result.githubOutput.readText()).contains("sarif-run-count=0")
+        assertThat(result.githubOutput.readText()).contains("sarif-run-count=0").contains("sarif-complete=false")
     }
 
     @Test
@@ -78,7 +78,8 @@ class ValidationScriptsTest {
 
         assertThat(result.exitCode).isEqualTo(1)
         assertThat(result.githubOutput.readText())
-            .contains("error-count=1").contains("warning-count=1").contains("sarif-run-count=3")
+            .contains("error-count=1").contains("warning-count=1")
+            .contains("sarif-run-count=3").contains("sarif-complete=true")
 
         // Code Scanning rejects several runs sharing a category, so there must be exactly one.
         val runs = runsOf(result)
@@ -89,6 +90,23 @@ class ValidationScriptsTest {
         assertThat(modelsOf(run)).containsExactly("b-invalid.zip", "c-warning.zip")
         assertThat(ruleIdsOf(run)).containsExactlyInAnyOrder("EB005", "EB011")
         assertThat(run.getJSONObject("tool").getJSONObject("driver").getString("name")).isEqualTo("fake")
+    }
+
+    @Test
+    fun `github validation script reports a dead checker instead of a clean model`() {
+        File(tempDir, "a-clean.zip").writeText("placeholder")
+        File(tempDir, "b-crash.zip").writeText("placeholder")
+
+        val result = runGitHubScript("*.zip")
+
+        // The checker wrote nothing at all, which must not read as "no findings".
+        assertThat(result.exitCode).isEqualTo(1)
+        assertThat(result.output).contains("Infrastructure error validating b-crash.zip")
+        assertThat(result.githubOutput.readText()).contains("valid=false")
+        // One model produced a run, but the report does not cover the crashed one:
+        // publishing it would resolve that model's alerts as fixed.
+        assertThat(result.githubOutput.readText())
+            .contains("sarif-run-count=1").contains("sarif-complete=false")
     }
 
     @Test
@@ -173,6 +191,11 @@ class ValidationScriptsTest {
             if [[ "${'$'}name" == *invalid*.zip ]]; then
               emit '[{"id":"EB005","shortDescription":{"text":"Formula parse error"}}]' \
                    '[{"ruleId":"EB005","level":"error","message":{"text":"broken model '"${'$'}name"'"},"locations":[{"physicalLocation":{"artifactLocation":{"uri":"'"${'$'}name"'"}}}]}]'
+              exit 1
+            fi
+            if [[ "${'$'}name" == *crash*.zip ]]; then
+              # A dead JVM: some exit code other than the checker's own 2, no stdout.
+              echo "Error occurred during initialization of VM" >&2
               exit 1
             fi
             if [[ "${'$'}name" == *warning*.zip ]]; then
