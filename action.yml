@@ -86,7 +86,7 @@ runs:
       # skips both the empty report Code Scanning rejects outright and the partial
       # one that would make it resolve the alerts of the models that crashed.
       if: ${{ !cancelled() && inputs.upload-sarif == 'true' && steps.validate.outputs.sarif-complete == 'true' }}
-      uses: github/codeql-action/upload-sarif@v4.37.6
+      uses: github/codeql-action/upload-sarif@v4.37.7
       with:
         sarif_file: eventb-checker-results.sarif
         # An empty category is read as unset by the upload action.
