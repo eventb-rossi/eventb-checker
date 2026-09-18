@@ -2,6 +2,7 @@ package com.eventb.checker.camille
 
 import com.eventb.checker.model.Convergence
 import com.eventb.checker.model.Machine
+import com.eventb.checker.validation.ValidationRules
 import com.eventb.checker.validation.ValidationSeverity
 import de.be4.eventb.core.parser.node.AMachineParseUnit
 import org.assertj.core.api.Assertions.assertThat
@@ -616,5 +617,85 @@ class CamilleParserTest {
         assertThat(result.errors).isEmpty()
         assertThat(result.machine).isNotNull
         assertThat(result.machine!!.variables).hasSize(1)
+    }
+
+    @Test
+    fun `NUL in a component name is rejected rather than swallowed`() {
+        val result = parser.parse("context C\u0000\nend\n", "project/C.eventb")
+
+        assertThat(result.context).isNull()
+        assertThat(result.machine).isNull()
+        assertThat(result.errors).singleElement().satisfies({ error ->
+            assertThat(error.severity).isEqualTo(ValidationSeverity.ERROR)
+            assertThat(error.ruleId).isEqualTo(ValidationRules.CAMILLE_PARSE_ERROR.id)
+            assertThat(error.message).contains("U+0000", "[1,10]")
+        })
+    }
+
+    @Test
+    fun `every control character in the file is reported`() {
+        val input = "context C\u0001\nconstants a\u007F\naxioms\n  @a1 a\u0085 = 1\nend\n"
+
+        val result = parser.parse(input, "project/C.eventb")
+
+        assertThat(result.errors).hasSize(3)
+        assertThat(result.errors.map { it.message }).satisfiesExactly(
+            { assertThat(it).contains("U+0001", "[1,10]") },
+            { assertThat(it).contains("U+007F", "[2,12]") },
+            { assertThat(it).contains("U+0085", "[4,8]") },
+        )
+    }
+
+    @Test
+    fun `separators both lexers read stay legal`() {
+        // Kept because Camille reads them as layout AND Rodin's math lexer reads them as
+        // whitespace: the file means what it looks like. U+001C..U+001F and NBSP are the
+        // non-obvious members -- rossi treats all of them as ordinary separators too.
+        val separators = listOf(
+            '\u0009', '\u000B', '\u000C', '\u000D', '\u0020',
+            '\u001C', '\u001D', '\u001E', '\u001F', '\u00A0',
+        )
+
+        for (separator in separators) {
+            val result = parser.parse("context C$separator\nend\n", "project/C.eventb")
+
+            assertThat(result.errors)
+                .describedAs("U+%04X must not be rejected".format(separator.code))
+                .isEmpty()
+        }
+    }
+
+    @Test
+    fun `a control character inside a comment is not reported`() {
+        val input = "context C // note\u0000\n/* block\u0001 */\nend\n"
+
+        val result = parser.parse(input, "project/C.eventb")
+
+        assertThat(result.errors).isEmpty()
+        assertThat(result.context).isNotNull
+        assertThat(result.context!!.name).isEqualTo("C")
+    }
+
+    @Test
+    fun `parse errors are not reported as control characters`() {
+        val result = parser.parse("context C@\nend\n", "project/C.eventb")
+
+        assertThat(result.errors).singleElement().satisfies({ error ->
+            assertThat(error.ruleId).isEqualTo(ValidationRules.CAMILLE_PARSE_ERROR.id)
+            assertThat(error.message).doesNotContain("control character")
+        })
+    }
+
+    @Test
+    fun `a control character in a multi-component file is rejected once per occurrence`() {
+        val input = "context C\u0000\nend\n\nmachine M\nend\n"
+
+        val result = parser.parseFile(input, "project/all.eventb")
+
+        assertThat(result.machines).isEmpty()
+        assertThat(result.contexts).isEmpty()
+        assertThat(result.errors).singleElement().satisfies({ error ->
+            assertThat(error.message).contains("U+0000", "[1,10]")
+        })
     }
 }

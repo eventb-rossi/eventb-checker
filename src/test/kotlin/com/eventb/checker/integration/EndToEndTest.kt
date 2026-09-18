@@ -514,4 +514,22 @@ class EndToEndTest {
         assertThat(result.isValid).isTrue()
         assertThat(result.summary.contextCount).isEqualTo(2)
     }
+
+    @Test
+    fun `eventb file with a NUL in a component name is invalid`() {
+        // `context C\u0000` lexes exactly like `context C`, so before the guard this was a valid
+        // model with one context named "C" and exit 0.
+        val zip = createZip(
+            tempDir,
+            "project/C.eventb" to "context C\u0000\nend\n",
+        )
+
+        val result = validator.validate(zip.absolutePath)
+
+        assertThat(result.isValid).isFalse()
+        assertThat(result.summary.contextCount).isEqualTo(0)
+        assertThat(result.errors).anyMatch {
+            it.ruleId == ValidationRules.CAMILLE_PARSE_ERROR.id && it.message.contains("U+0000")
+        }
+    }
 }

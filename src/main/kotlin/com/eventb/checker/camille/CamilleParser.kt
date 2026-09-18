@@ -15,8 +15,6 @@ import com.eventb.checker.model.Variable
 import com.eventb.checker.model.Variant
 import com.eventb.checker.model.Witness
 import com.eventb.checker.validation.ValidationError
-import com.eventb.checker.validation.ValidationRules
-import com.eventb.checker.validation.ValidationSeverity
 import de.be4.eventb.core.parser.BException
 import de.be4.eventb.core.parser.EventBParser
 import de.be4.eventb.core.parser.node.AAction
@@ -88,7 +86,11 @@ open class CamilleParser {
         fun normalize(input: String): String = normalizeTheoremOrder(normalizeKeywords(input))
     }
 
-    fun parse(input: String, filePath: String): CamilleParseResult = parseNormalized(normalize(input), filePath)
+    fun parse(input: String, filePath: String): CamilleParseResult {
+        val eaten = silentlyEatenCharacters(input, filePath)
+        if (eaten.isNotEmpty()) return CamilleParseResult(machine = null, context = null, errors = eaten)
+        return parseNormalized(normalize(input), filePath)
+    }
 
     private fun parseNormalized(normalized: String, filePath: String): CamilleParseResult {
         val parser = EventBParser()
@@ -98,14 +100,7 @@ open class CamilleParser {
             return CamilleParseResult(
                 machine = null,
                 context = null,
-                errors = listOf(
-                    ValidationError(
-                        filePath = filePath,
-                        severity = ValidationSeverity.ERROR,
-                        message = "Camille parse error: ${e.message}",
-                        ruleId = ValidationRules.CAMILLE_PARSE_ERROR.id,
-                    ),
-                ),
+                errors = listOf(camilleParseError(filePath, "${e.message}")),
             )
         }
 
@@ -124,14 +119,7 @@ open class CamilleParser {
                 else -> CamilleParseResult(
                     machine = null,
                     context = null,
-                    errors = listOf(
-                        ValidationError(
-                            filePath = filePath,
-                            severity = ValidationSeverity.ERROR,
-                            message = "Camille parse error: unknown parse unit type",
-                            ruleId = ValidationRules.CAMILLE_PARSE_ERROR.id,
-                        ),
-                    ),
+                    errors = listOf(camilleParseError(filePath, "unknown parse unit type")),
                 )
             }
         } catch (e: RuntimeException) {
@@ -139,18 +127,16 @@ open class CamilleParser {
                 machine = null,
                 context = null,
                 errors = listOf(
-                    ValidationError(
-                        filePath = filePath,
-                        severity = ValidationSeverity.ERROR,
-                        message = "Camille parse error: failed to convert parse tree: ${e.message ?: e.javaClass.simpleName}",
-                        ruleId = ValidationRules.CAMILLE_PARSE_ERROR.id,
-                    ),
+                    camilleParseError(filePath, "failed to convert parse tree: ${e.message ?: e.javaClass.simpleName}"),
                 ),
             )
         }
     }
 
     fun parseFile(input: String, filePath: String): CamilleFileResult {
+        val eaten = silentlyEatenCharacters(input, filePath)
+        if (eaten.isNotEmpty()) return CamilleFileResult(machines = emptyList(), contexts = emptyList(), errors = eaten)
+
         val normalized = normalize(input)
         val splitter = CamilleFileSplitter()
         val chunks = splitter.split(normalized)

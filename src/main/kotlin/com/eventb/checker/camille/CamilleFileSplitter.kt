@@ -5,17 +5,15 @@ data class CamilleChunk(val text: String, val componentName: String)
 class CamilleFileSplitter {
 
     fun split(input: String): List<CamilleChunk> {
-        val lines = input.lines()
         val chunks = mutableListOf<CamilleChunk>()
         var depth = 0
         var currentLines = mutableListOf<String>()
         var currentName = ""
-        var inBlockComment = false
 
-        for (line in lines) {
-            val stripped = stripComments(line, inBlockComment)
-            inBlockComment = stripped.second
-            val effective = stripped.first.trim()
+        // [maskComments] preserves length and line terminators, so the two line lists pair up
+        // exactly: structure is read off the masked line, the original is kept for the chunk text.
+        for ((line, masked) in input.lines().zip(maskComments(input).lines())) {
+            val effective = masked.trim()
 
             if (depth == 0) {
                 val topLevel = matchTopLevel(effective)
@@ -76,38 +74,6 @@ class CamilleFileSplitter {
         }
 
         return delta
-    }
-
-    private fun stripComments(line: String, inBlock: Boolean): Pair<String, Boolean> {
-        val sb = StringBuilder()
-        var i = 0
-        var block = inBlock
-
-        while (i < line.length) {
-            if (block) {
-                val closeIdx = line.indexOf("*/", i)
-                if (closeIdx == -1) {
-                    // Rest of line is inside block comment
-                    return Pair(sb.toString(), true)
-                }
-                i = closeIdx + 2
-                block = false
-            } else {
-                if (i + 1 < line.length && line[i] == '/' && line[i + 1] == '/') {
-                    // Rest of line is a line comment
-                    return Pair(sb.toString(), false)
-                }
-                if (i + 1 < line.length && line[i] == '/' && line[i + 1] == '*') {
-                    block = true
-                    i += 2
-                } else {
-                    sb.append(line[i])
-                    i++
-                }
-            }
-        }
-
-        return Pair(sb.toString(), block)
     }
 
     companion object {

@@ -8,6 +8,7 @@ A command-line validator for [Event-B](https://www.event-b.org/) models. It read
 |-------|----------|-------------|
 | XML well-formedness | ERROR | Validates `.bum`/`.buc` files are well-formed XML |
 | Camille syntax | ERROR | Parses `.eventb` files using the Camille textual notation grammar |
+| Control characters in source | ERROR | Rejects a `.eventb` file containing a character Camille's lexer reads as layout although Rodin's math lexer does not treat it as whitespace (NUL, DEL, the C1 block, the bidi marks). Camille drops it silently, so `context C<NUL>` parses as `context C` and the file means something other than what it reads as. Reported under EB004 |
 | Formula syntax | ERROR | Parses predicates, expressions, and assignments using the Rodin AST library |
 | Assignment in predicate | ERROR | Reports an invariant, guard, witness, or axiom that uses an assignment operator (`:=`, `:∈`, `:|`) where a predicate is required |
 | Undeclared identifiers | ERROR | Reports identifiers not declared in the surrounding context, machine, or event scope |
