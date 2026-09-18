@@ -6,6 +6,7 @@ import com.eventb.checker.report.SarifReportFormatter
 import com.eventb.checker.report.TextReportFormatter
 import com.eventb.checker.validation.ProjectValidator
 import com.github.ajalt.clikt.core.CliktCommand
+import com.github.ajalt.clikt.core.CliktError
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.UsageError
 import com.github.ajalt.clikt.core.main
@@ -33,14 +34,32 @@ class EventBChecker : CliktCommand(name = "eventb-checker") {
 abstract class ModelCommand(name: String) : CliktCommand(name = name) {
     protected val modelPath by argument(help = "Path to a .zip archive, directory, or .eventb file")
 
+    /**
+     * The whole subcommand, including rendering the report: serialising a report with a very large
+     * number of findings is itself somewhere an OutOfMemoryError lands, and the exit-code contract
+     * belongs to this class rather than to each subcommand remembering to ask for it.
+     */
+    final override fun run() = runOrExit { execute() }
+
+    protected abstract fun execute()
+
     /** Run `block`, reporting any failure to stderr and exiting with code 2. */
-    protected fun <T> runOrExit(block: () -> T): T = try {
+    private fun <T> runOrExit(block: () -> T): T = try {
         block()
+    } catch (e: CliktError) {
+        // Clikt's own control flow — usage errors, --help, ProgramResult. Not a failure to report.
+        throw e
     } catch (e: IllegalArgumentException) {
         echo("Error: ${e.message}", err = true)
         exitProcess(2)
-    } catch (e: Exception) {
-        echo("Unexpected error: ${e.message}", err = true)
+    } catch (e: Throwable) {
+        // Throwable, not Exception: a StackOverflowError from a formula nested deeper than any
+        // per-formula guard anticipated, or an OutOfMemoryError, is an Error and would otherwise
+        // escape main and print a raw JVM stack trace with nothing on stdout. Exit 2 rather than
+        // 1 — 1 means the model has findings and is paired with a report, 2 means the checker
+        // could not do its job, which is what the CI wrappers key on. `$e` is Throwable.toString():
+        // the type, plus the message when there is one, since an Error usually carries none.
+        echo("Unexpected error: $e", err = true)
         exitProcess(2)
     }
 }
@@ -52,9 +71,9 @@ class CheckCommand : ModelCommand(name = "check") {
     private val showInfo by option("--show-info", help = "Include INFO-severity findings in output").flag()
     private val proofs by option("--proofs", "-p", help = "Check proof status from .bpr/.bpo/.bps files").flag()
 
-    override fun run() {
+    override fun execute() {
         val validator = ProjectValidator(checkProofs = proofs)
-        val result = runOrExit { validator.validate(modelPath) }
+        val result = validator.validate(modelPath)
 
         val output = if (showInfo) result else result.withoutInfo()
 
@@ -77,11 +96,11 @@ class InfoCommand : ModelCommand(name = "info") {
     private val format by option("--format", "-f", help = "Output format")
         .choice("text", "json").default("text")
 
-    override fun run() {
+    override fun execute() {
         if (!types) {
             throw UsageError("Specify at least one kind of information to show (e.g. --types)")
         }
-        val dump = runOrExit { ProjectValidator().dumpTypes(modelPath) }
+        val dump = ProjectValidator().dumpTypes(modelPath)
         echo(
             when (format) {
                 "json" -> InfoFormatter.json(dump)

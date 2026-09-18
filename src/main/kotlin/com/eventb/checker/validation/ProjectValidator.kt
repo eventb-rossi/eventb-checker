@@ -67,17 +67,24 @@ class ProjectValidator(private val checkProofs: Boolean = false) {
             proofSummary = proofResult.summary
         }
 
+        // Byte-identical findings are one defect stated twice, never two the reader could act on
+        // separately: same file, same element, same message, same formula, same rule. Stages that
+        // overlap by design produce them — a formula too deeply nested to parse is reported once by
+        // the formula validator and again by the type checker, which re-parses the same string from
+        // a deeper stack base and so cannot tell whether anything upstream already spoke.
+        val errors = allErrors.distinct()
+
         val summary = ValidationSummary(
             machineCount = project.machines.size,
             contextCount = project.contexts.size,
             formulaCount = formulaChecks.size,
-            errorCount = allErrors.count { it.severity == ValidationSeverity.ERROR },
-            warningCount = allErrors.count { it.severity == ValidationSeverity.WARNING },
-            infoCount = allErrors.count { it.severity == ValidationSeverity.INFO },
+            errorCount = errors.count { it.severity == ValidationSeverity.ERROR },
+            warningCount = errors.count { it.severity == ValidationSeverity.WARNING },
+            infoCount = errors.count { it.severity == ValidationSeverity.INFO },
             proofSummary = proofSummary,
         )
 
-        return ValidationResult(allErrors, summary)
+        return ValidationResult(errors, summary)
     }
 
     /**

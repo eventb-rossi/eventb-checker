@@ -4,6 +4,9 @@ import com.eventb.checker.TestModelBuilders.context
 import com.eventb.checker.TestModelBuilders.event
 import com.eventb.checker.TestModelBuilders.machine
 import com.eventb.checker.TestModelBuilders.project
+import com.eventb.checker.TestStackHelper.DEEP
+import com.eventb.checker.TestStackHelper.nested
+import com.eventb.checker.TestStackHelper.onSmallStack
 import com.eventb.checker.model.Action
 import com.eventb.checker.model.Axiom
 import com.eventb.checker.model.CarrierSet
@@ -999,6 +1002,31 @@ class TypeCheckerTest {
                 it.ruleId == ValidationRules.DISAPPEARED_VARIABLE.id &&
                 it.element == "evt/act1" &&
                 it.message.contains("'x'")
+        }
+    }
+
+    @Test
+    fun `a context with a formula too deep to parse still lets the others be checked`() {
+        val project = project(
+            contexts = listOf(
+                context(
+                    "Hostile",
+                    constants = listOf(Constant("c", "c")),
+                    axioms = listOf(Axiom("axm1", "c = " + nested(DEEP), false)),
+                ),
+                context(
+                    "Ordinary",
+                    constants = listOf(Constant("d", "d")),
+                    axioms = listOf(Axiom("axm1", "d = TRUE", false), Axiom("axm2", "d > 0", false)),
+                ),
+            ),
+        )
+
+        val result = onSmallStack { typeChecker.checkProjectFull(project) }
+
+        // The point of per-formula recovery: the unrelated context is still type-checked.
+        assertThat(result.errors).anyMatch {
+            it.filePath.contains("Ordinary") && it.ruleId == ValidationRules.TYPE_ERROR.id
         }
     }
 }

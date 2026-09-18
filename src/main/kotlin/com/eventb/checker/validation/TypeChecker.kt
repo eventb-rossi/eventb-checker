@@ -477,7 +477,18 @@ class TypeChecker(private val ff: FormulaFactory = FormulaFactory.getDefault()) 
         scope: IdentifierScope,
         disappearedVariables: Set<String> = emptySet(),
     ) {
-        val parseResult = parse(formula)
+        // This parse runs from a deeper stack base than FormulaValidator's — checkMachine recurses
+        // once per REFINES level — so it can overflow on a formula FormulaValidator parsed
+        // successfully, in which case nothing else in the run says why the formula was dropped.
+        // It has to be a finding rather than a silent skip for a second reason: the formula never
+        // reaches parsedFormulas, and checkContext reads that list to decide which constants no
+        // axiom mentions, so staying quiet here turns a too-deep axiom into a misleading EB006
+        // "constant 'c' is not referenced by any axiom".
+        val parseResult = stackSafeOrNull { parse(formula) }
+        if (parseResult == null) {
+            errors.add(tooDeeplyNestedError(filePath, elementLabel, formula))
+            return
+        }
         if (parseResult.hasProblem()) return
 
         val parsed = extract(parseResult)
@@ -500,14 +511,25 @@ class TypeChecker(private val ff: FormulaFactory = FormulaFactory.getDefault()) 
                         severity = ValidationSeverity.ERROR,
                         message = message,
                         element = elementLabel,
-                        formula = formula,
+                        formula = formula.formulaExcerpt(),
                         ruleId = rule.id,
                     ),
                 )
             }
         }
 
-        val tcResult = parsed.typeCheck(env)
+        // typeCheck walks the AST recursively, so a formula that parsed can still exhaust the stack
+        // here, and no other check reports on this stage — hence a finding rather than a silent
+        // skip. `env` is safe to keep using: Formula.typeCheck snapshots the environment, and the
+        // only write back is the env.addAll below, which this return skips. The ParsedFormula
+        // recorded above is kept deliberately: it is read only through freeIdentifiers, which is
+        // valid on a partially type-checked formula, and dropping it would raise a spurious EB006
+        // "constant given no type by any axiom" for the very axiom that overflowed.
+        val tcResult = stackSafeOrNull { parsed.typeCheck(env) }
+        if (tcResult == null) {
+            errors.add(tooDeeplyNestedError(filePath, elementLabel, formula))
+            return
+        }
 
         if (tcResult.isSuccess) {
             env.addAll(tcResult.inferredEnvironment)
@@ -532,7 +554,7 @@ class TypeChecker(private val ff: FormulaFactory = FormulaFactory.getDefault()) 
                         severity = severity,
                         message = message,
                         element = elementLabel,
-                        formula = formula,
+                        formula = formula.formulaExcerpt(),
                         ruleId = rule.id,
                     ),
                 )

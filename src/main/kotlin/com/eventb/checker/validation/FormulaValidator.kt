@@ -46,10 +46,20 @@ class FormulaValidator {
         return checks
     }
 
-    fun validate(check: FormulaCheck): List<ValidationError> {
+    /**
+     * Findings for [check], or one "nested too deeply" error when the formula exhausts the JVM
+     * stack. The guard sits on the whole stage rather than on the parse call alone, so it covers
+     * every recursive step this function takes — including the second parse below.
+     */
+    fun validate(check: FormulaCheck): List<ValidationError> = stackSafeOrNull { validateParsed(check) }
+        ?: listOf(tooDeeplyNestedError(check.filePath, check.elementLabel, check.formula))
+
+    private fun validateParsed(check: FormulaCheck): List<ValidationError> {
         val result = parse(check.formula, check.kind)
 
         if (!result.hasProblem()) return emptyList()
+
+        val formula = check.formula.formulaExcerpt()
 
         // A predicate that fails to parse but is a well-formed assignment is a misplaced
         // assignment operator (:=, :∈, :|) in an invariant/guard/witness/axiom, where '='
@@ -62,7 +72,7 @@ class FormulaValidator {
                     message = "Assignment operator in predicate: '${check.elementLabel}' uses an assignment " +
                         "(':=', ':∈', or ':|') where a predicate is required — did you mean '=' for equality?",
                     element = check.elementLabel,
-                    formula = check.formula,
+                    formula = formula,
                     ruleId = ValidationRules.ASSIGNMENT_IN_PREDICATE.id,
                 ),
             )
@@ -74,7 +84,7 @@ class FormulaValidator {
                 severity = ValidationSeverity.ERROR,
                 message = "Formula parse error: $problem",
                 element = check.elementLabel,
-                formula = check.formula,
+                formula = formula,
                 ruleId = ValidationRules.FORMULA_PARSE_ERROR.id,
             )
         }

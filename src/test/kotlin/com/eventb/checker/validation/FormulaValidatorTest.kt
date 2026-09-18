@@ -1,5 +1,8 @@
 package com.eventb.checker.validation
 
+import com.eventb.checker.TestStackHelper.DEEP
+import com.eventb.checker.TestStackHelper.nested
+import com.eventb.checker.TestStackHelper.onSmallStack
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 
@@ -111,4 +114,41 @@ class FormulaValidatorTest {
         formula = formula,
         kind = kind,
     )
+
+    @Test
+    fun `a formula nested too deeply to parse is reported as a parse error`() {
+        val error = deepError("c = " + nested(DEEP), FormulaKind.PREDICATE)
+
+        assertThat(error.severity).isEqualTo(ValidationSeverity.ERROR)
+        assertThat(error.ruleId).isEqualTo(ValidationRules.FORMULA_PARSE_ERROR.id)
+        assertThat(error.message).contains("nested too deeply")
+        // The formula is shortened: it is serialised verbatim into JSON and SARIF.
+        assertThat(error.formula!!).hasSizeLessThan(600).endsWith("characters total)")
+    }
+
+    @Test
+    fun `a deeply nested expression and assignment are reported too`() {
+        assertThat(deepError(nested(DEEP), FormulaKind.EXPRESSION).ruleId)
+            .isEqualTo(ValidationRules.FORMULA_PARSE_ERROR.id)
+        assertThat(deepError("x ≔ " + nested(DEEP), FormulaKind.ASSIGNMENT).ruleId)
+            .isEqualTo(ValidationRules.FORMULA_PARSE_ERROR.id)
+    }
+
+    @Test
+    fun `a deeply nested predicate is not reported twice by the assignment check`() {
+        // Exercises the EB026 path, which parses the same string a second time.
+        assertThat(deepError("x ≔ " + nested(DEEP), FormulaKind.PREDICATE).ruleId)
+            .isEqualTo(ValidationRules.FORMULA_PARSE_ERROR.id)
+    }
+
+    @Test
+    fun `an ordinary formula is reported in full`() {
+        val errors = validator.validate(formulaCheck("x ==== y", FormulaKind.PREDICATE))
+
+        assertThat(errors.first().formula).isEqualTo("x ==== y")
+    }
+
+    /** The single finding for a formula too deeply nested for [kind] to reach a verdict. */
+    private fun deepError(formula: String, kind: FormulaKind): ValidationError =
+        onSmallStack { validator.validate(formulaCheck(formula, kind)) }.single()
 }

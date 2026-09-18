@@ -31,7 +31,8 @@ object ValidationRules {
     val FORMULA_PARSE_ERROR = RuleDescriptor(
         "EB005",
         "Formula parse error",
-        "A predicate, expression, or assignment formula has invalid syntax according to the Rodin AST grammar.",
+        "A predicate, expression, or assignment formula has invalid syntax according to the Rodin AST grammar, " +
+            "or is nested too deeply for the checker to analyse.",
     )
 
     val TYPE_ERROR = RuleDescriptor(

@@ -1,11 +1,16 @@
 package com.eventb.checker.integration
 
+import com.eventb.checker.TestStackHelper.DEEP
+import com.eventb.checker.TestStackHelper.nested
+import com.eventb.checker.TestStackHelper.onSmallStack
 import com.eventb.checker.TestZipHelper.createZip
+import com.eventb.checker.report.JsonReportFormatter
 import com.eventb.checker.validation.ProjectValidator
 import com.eventb.checker.validation.ValidationRules
 import com.eventb.checker.validation.ValidationSeverity
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.json.JSONObject
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
@@ -532,4 +537,55 @@ class EndToEndTest {
             it.ruleId == ValidationRules.CAMILLE_PARSE_ERROR.id && it.message.contains("U+0000")
         }
     }
+
+    @Test
+    fun `a model with a formula too deep to parse still produces a report`() {
+        val zip = createZip(
+            tempDir,
+            "project/Deep.buc" to deepAxiomContext(),
+            "project/NeedsInit.bum" to """
+                <org.eventb.core.machineFile name="NeedsInit">
+                    <org.eventb.core.variable org.eventb.core.identifier="n" org.eventb.core.label="n"/>
+                    <org.eventb.core.invariant org.eventb.core.label="inv1"
+                        org.eventb.core.predicate="n ∈ ℕ" org.eventb.core.theorem="false"/>
+                    <org.eventb.core.event org.eventb.core.label="INITIALISATION"
+                        org.eventb.core.convergence="0" org.eventb.core.extended="false"/>
+                </org.eventb.core.machineFile>
+            """.trimIndent(),
+        )
+
+        // Before the fix this escaped as a StackOverflowError: no result at all, and with it every
+        // finding from the other file.
+        val result = onSmallStack { validator.validate(zip.absolutePath) }
+
+        assertThat(result.isValid).isFalse()
+        // Exactly one: the formula validator and the type checker both refuse this formula, and
+        // the reader is owed one statement of the defect rather than one per stage that hit it.
+        assertThat(
+            result.errors.filter {
+                it.ruleId == ValidationRules.FORMULA_PARSE_ERROR.id && it.message.contains("nested too deeply")
+            },
+        ).hasSize(1)
+        assertThat(result.errors).anyMatch {
+            it.severity == ValidationSeverity.WARNING && it.message.contains("INITIALISATION") && it.message.contains("'n'")
+        }
+
+        // The report still serialises, with no formula field big enough to choke SARIF.
+        val json = JSONObject(JsonReportFormatter().format(result))
+        assertThat(json.getBoolean("valid")).isFalse()
+        val errors = json.getJSONArray("errors")
+        for (index in 0 until errors.length()) {
+            assertThat(errors.getJSONObject(index).optString("formula"))
+                .describedAs("errors[%d].formula", index).hasSizeLessThan(600)
+        }
+    }
+
+    /** A context whose only axiom is nested far past what Rodin's parser can reach. */
+    private fun deepAxiomContext() = """
+        <org.eventb.core.contextFile name="Deep">
+            <org.eventb.core.constant org.eventb.core.identifier="c"/>
+            <org.eventb.core.axiom org.eventb.core.label="axm1"
+                org.eventb.core.predicate="c = ${nested(DEEP)}" org.eventb.core.theorem="false"/>
+        </org.eventb.core.contextFile>
+    """.trimIndent()
 }
