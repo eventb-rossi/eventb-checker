@@ -52,12 +52,26 @@ class ModelImporter {
         val file = File(modelPath)
         require(file.exists()) { "File not found: $modelPath" }
 
-        return when {
+        val contents = when {
             file.isDirectory -> importDirectory(file)
             file.extension == "zip" -> importZip(file)
             file.extension == "eventb" -> importSingleEventbFile(file)
             else -> throw IllegalArgumentException("Expected a .zip file, directory, or .eventb file: $modelPath")
         }
+
+        // Nothing to check is an input error, not a clean bill of health. An archive or directory
+        // holding no component file at all — empty, holding only unrelated files, or holding just
+        // the .bpr/.bpo/.bps/.project scaffolding — would otherwise be reported as a valid model
+        // with zero machines and zero contexts, which is indistinguishable from a model that was
+        // checked and found clean. The extensions come from the same constants
+        // [ModelContentsAccumulator.categorize] dispatches on, so the message cannot drift from
+        // what actually counts.
+        require(contents.machines.isNotEmpty() || contents.contexts.isNotEmpty() || contents.eventbFiles.isNotEmpty()) {
+            "No Event-B model files (${XmlConstants.EXT_MACHINE}, ${XmlConstants.EXT_CONTEXT}, $EXT_EVENTB) " +
+                "found in: $modelPath"
+        }
+
+        return contents
     }
 
     private fun importZip(file: File): ModelContents {

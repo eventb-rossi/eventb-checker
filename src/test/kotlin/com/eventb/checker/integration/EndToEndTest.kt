@@ -5,6 +5,7 @@ import com.eventb.checker.validation.ProjectValidator
 import com.eventb.checker.validation.ValidationRules
 import com.eventb.checker.validation.ValidationSeverity
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
@@ -153,17 +154,16 @@ class EndToEndTest {
     }
 
     @Test
-    fun `empty project produces valid result with zero counts`() {
+    fun `project with no model files is an input error`() {
         val zip = createZip(
             tempDir,
             "project/.project" to "<projectDescription/>",
         )
 
-        val result = validator.validate(zip.absolutePath)
-
-        assertThat(result.isValid).isTrue()
-        assertThat(result.summary.machineCount).isEqualTo(0)
-        assertThat(result.summary.contextCount).isEqualTo(0)
+        // Not a clean bill of health: nothing was checked. Main turns this into exit 2.
+        assertThatThrownBy { validator.validate(zip.absolutePath) }
+            .isInstanceOf(IllegalArgumentException::class.java)
+            .hasMessageContaining("No Event-B model files")
     }
 
     @Test

@@ -32,13 +32,25 @@ class ModelImporterTest {
     }
 
     @Test
-    fun `import handles empty zip`() {
+    fun `import rejects an empty zip`() {
         val zip = createZip(tempDir)
 
-        val contents = importer.import(zip.absolutePath)
+        assertThatThrownBy { importer.import(zip.absolutePath) }
+            .isInstanceOf(IllegalArgumentException::class.java)
+            .hasMessageContaining("No Event-B model files")
+    }
 
-        assertThat(contents.machines).isEmpty()
-        assertThat(contents.contexts).isEmpty()
+    @Test
+    fun `import rejects an archive holding only project scaffolding`() {
+        val zip = createZip(
+            tempDir,
+            "project/.project" to "<projectDescription/>",
+            "project/M0.bpr" to "<org.eventb.core.prFile/>",
+        )
+
+        assertThatThrownBy { importer.import(zip.absolutePath) }
+            .isInstanceOf(IllegalArgumentException::class.java)
+            .hasMessageContaining("No Event-B model files")
     }
 
     @Test

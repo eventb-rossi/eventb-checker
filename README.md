@@ -170,7 +170,7 @@ validators) and never reports invalidity — it exits 0 (success) or 2 (input er
 |------|---------|
 | 0 | Model is valid |
 | 1 | Model is invalid (has ERROR-severity findings) |
-| 2 | Input error (file not found, not a zip/directory, etc.) |
+| 2 | Input error (file not found, not a zip/directory/`.eventb`, no model files found, etc.) |
 
 ## Example Output
 
