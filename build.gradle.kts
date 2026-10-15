@@ -2,7 +2,7 @@ plugins {
     kotlin("jvm") version "2.4.21"
     application
     id("com.gradleup.shadow") version "9.6.1"
-    id("com.diffplug.spotless") version "8.10.3"
+    id("com.diffplug.spotless") version "8.10.4"
 }
 
 group = "com.eventb"
