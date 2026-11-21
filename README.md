@@ -16,6 +16,7 @@ A command-line validator for [Event-B](https://www.event-b.org/) models. It read
 | Unknown types | WARNING | Reports identifiers whose types cannot be inferred (often constructs the checker does not fully model, such as primed witness variables) |
 | Cross-reference integrity | ERROR | Verifies SEES, REFINES, and EXTENDS targets exist in the project |
 | Refinement checks | ERROR | Reports new events that assign a variable inherited from an abstract machine, and guards or actions that reference a variable dropped by the refinement |
+| Disjoint assignments | ERROR | Reports every action that assigns a variable another action of the same event also assigns, including an action inherited by an extended event, matching Rodin's static checker |
 | Well-definedness | INFO | Reports non-trivial well-definedness conditions (e.g., division by zero) |
 | Dead variables | WARNING | Flags a variable that nothing references outside typing invariants and that no event assigns; write-only variables are exempt. Judged once, at the machine that declares it, considering references across the whole refinement chain |
 | Unmodified variables | WARNING | Flags a variable that INITIALISATION assigns but no event ever modifies — a constant in disguise. Modifications anywhere in the refinement chain count |
