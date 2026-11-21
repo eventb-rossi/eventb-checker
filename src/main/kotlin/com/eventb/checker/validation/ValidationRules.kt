@@ -168,6 +168,17 @@ object ValidationRules {
             "predicate is required; the intended operator is most likely '=' for equality.",
     )
 
+    val CONFLICTING_ASSIGNMENTS = RuleDescriptor(
+        "EB037",
+        "Variable assigned by more than one action",
+        "Two actions of one event assign the same variable, or an action of an extended event assigns a variable " +
+            "that an inherited action already assigns. The actions of an event happen simultaneously, so Rodin " +
+            "requires them to assign disjoint sets of variables. Two updates of one function, 'f(a) ≔ E' and " +
+            "'f(b) ≔ F', are such a pair; merge them into 'f ≔ f <+ {a ↦ E, b ↦ F}', or use one multiple " +
+            "assignment 'x, y ≔ E, F'. The override needs 'a ≠ b', for example as a guard: if 'a = b' and " +
+            "'E ≠ F', it maps 'a' to two values, and 'f' is no longer a function.",
+    )
+
     val ALL: List<RuleDescriptor> = listOf(
         XML_PARSE_ERROR, UNEXPECTED_XML_ROOT, MISSING_XML_ATTRIBUTE,
         CAMILLE_PARSE_ERROR, FORMULA_PARSE_ERROR,
@@ -180,5 +191,6 @@ object ValidationRules {
         DUPLICATE_IDENTIFIER, DUPLICATE_LABEL,
         SHADOWED_NAME, NEW_EVENT_ASSIGNS_INHERITED_VARIABLE,
         DISAPPEARED_VARIABLE, ASSIGNMENT_IN_PREDICATE,
+        CONFLICTING_ASSIGNMENTS,
     )
 }

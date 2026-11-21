@@ -27,6 +27,13 @@ data class MachineInheritance(
      */
     val inheritedEventAssignments: Set<String>,
     /**
+     * For each `extended` event, INITIALISATION included, the names assigned by the actions it
+     * inherits from its first abstract event (Rodin reads only the first, an extended event having
+     * one target). [DisjointAssignmentChecker] needs them per event: an own action may not assign
+     * one of these again.
+     */
+    val inheritedActionAssignments: Map<String, Set<String>>,
+    /**
      * Every name the machine's materialized INITIALISATION assigns — its own actions plus, for an
      * extended INITIALISATION, the inherited chain's — or null when that chain cannot be fully
      * resolved (missing parent machine, REFINES cycle, ancestor without an INITIALISATION event,
@@ -99,17 +106,19 @@ class MachineInheritanceResolver(private val ff: FormulaFactory = FormulaFactory
         fun inheritanceOf(machine: Machine): MachineInheritance {
             val references = mutableSetOf<String>()
             val eventAssignments = mutableSetOf<String>()
+            val actionAssignments = mutableMapOf<String, Set<String>>()
 
             val parent = parentOf(machine)
             if (parent != null) {
                 references.addAll(invariantReferencesIncludingSelf(parent))
                 for (event in machine.events.filter { it.extended }) {
-                    for (abstractEvent in abstractEventsOf(parent, event)) {
+                    for ((index, abstractEvent) in abstractEventsOf(parent, event).withIndex()) {
                         val contribution = contributionOf(parent, abstractEvent)
                         references.addAll(contribution.references)
                         // An extended INITIALISATION's inherited writes are init-assignments, tracked
                         // by initAssignedIdentifiers; only genuine events contribute modifications.
                         if (event.label != INITIALISATION) eventAssignments.addAll(contribution.assignments)
+                        if (index == 0) actionAssignments[event.label] = contribution.assignments
                     }
                 }
             }
@@ -128,6 +137,7 @@ class MachineInheritanceResolver(private val ff: FormulaFactory = FormulaFactory
             return MachineInheritance(
                 inheritedReferences = references,
                 inheritedEventAssignments = eventAssignments,
+                inheritedActionAssignments = actionAssignments,
                 initAssignedIdentifiers = initAssignedIdentifiers(machine),
                 inheritedVariableNames = inheritedVariableNames(machine),
                 chainReferences = chainReferences,
